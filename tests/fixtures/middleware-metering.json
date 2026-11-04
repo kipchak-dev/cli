@@ -1,0 +1,33 @@
+{
+  "name": "kipchak/middleware-metering",
+  "require": {
+    "php": ">=8.4",
+    "kipchak/core": "^2 || ^3",
+    "kipchak/driver-config": "^1",
+    "kipchak/driver-logger": "^1",
+    "kipchak/identity": "^1",
+    "psr/clock": "^1",
+    "psr/http-server-middleware": "^1",
+    "psr/log": "^2 || ^3"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "middleware",
+      "config": "sample.config.php",
+      "configName": "kipchak.metering.php",
+      "initialise": "\\Kipchak\\Middleware\\Metering\\Metering::initialise($app);",
+      "after": [
+        "kipchak/middleware-quotas"
+      ],
+      "before": [
+        "kipchak/middleware-auth-hmac",
+        "kipchak/middleware-auth-jwks",
+        "kipchak/middleware-auth-jwt",
+        "kipchak/middleware-auth-key",
+        "kipchak/middleware-opentelemetry",
+        "kipchak/middleware-redaction"
+      ],
+      "docs": "https://kipchak.dev/docs/mw-metering"
+    }
+  }
+}

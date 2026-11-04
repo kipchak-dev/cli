@@ -64,6 +64,9 @@ abstract class Command extends SymfonyCommand
             return $this->fail($input, $output, $exception->getMessage(), ExitCode::CANNOT_RUN);
         } catch (ConflictException $exception) {
             return $this->fail($input, $output, $exception->getMessage(), ExitCode::FAILURE, ['conflicts' => $exception->conflicts]);
+        } catch (\UnexpectedValueException $exception) {
+            // A request the tool understood but cannot satisfy: an unknown package name, a dependency cycle.
+            return $this->fail($input, $output, $exception->getMessage(), ExitCode::FAILURE);
         }
     }
 
@@ -92,6 +95,12 @@ abstract class Command extends SymfonyCommand
         }
         foreach ($changeSet->messages as $message) {
             $output->writeln("<comment>{$message}</comment>");
+        }
+        if ($changeSet->settings !== []) {
+            $output->writeln('Set these before using it:');
+            foreach ($changeSet->settings as $setting) {
+                $output->writeln("  {$setting['file']}: {$setting['key']}");
+            }
         }
         if ($dryRun) {
             $output->writeln('<comment>Dry run: nothing was written.</comment>');

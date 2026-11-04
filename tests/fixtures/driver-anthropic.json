@@ -1,0 +1,25 @@
+{
+  "name": "kipchak/driver-anthropic",
+  "require": {
+    "php": "^8.4",
+    "anthropic-ai/sdk": "^0.36",
+    "kipchak/core": "^2 || ^3",
+    "kipchak/driver-config": "^1",
+    "kipchak/driver-http": "^2.10"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "driver",
+      "config": "sample.config.php",
+      "configName": "kipchak.anthropic.php",
+      "initialise": "\\Kipchak\\Driver\\Anthropic\\Anthropic::initialise($container);",
+      "after": [
+        "kipchak/driver-config",
+        "kipchak/driver-logger",
+        "kipchak/driver-http"
+      ],
+      "before": [],
+      "docs": "https://kipchak.dev/docs/driver-anthropic"
+    }
+  }
+}

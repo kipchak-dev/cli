@@ -1,0 +1,30 @@
+{
+  "name": "kipchak/middleware-subashi",
+  "require": {
+    "kipchak/core": "^2 || ^3",
+    "kipchak/driver-config": "^1",
+    "kipchak/driver-filecache": "^1",
+    "kipchak/driver-logger": "^1",
+    "kipchak/driver-memcached": "^1",
+    "psr/clock": "^1"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "middleware",
+      "config": "sample.config.php",
+      "configName": "kipchak.subashi.php",
+      "initialise": "\\Kipchak\\Middleware\\Subashi\\Subashi::initialise($app);",
+      "after": [
+        "kipchak/middleware-auth-hmac",
+        "kipchak/middleware-auth-jwks",
+        "kipchak/middleware-auth-jwt",
+        "kipchak/middleware-auth-key"
+      ],
+      "before": [
+        "kipchak/middleware-opentelemetry",
+        "kipchak/middleware-redaction"
+      ],
+      "docs": "https://kipchak.dev/docs/mw-subashi"
+    }
+  }
+}

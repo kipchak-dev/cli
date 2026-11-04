@@ -1,0 +1,20 @@
+{
+  "name": "kipchak/middleware-error",
+  "require": {
+    "kipchak/core": "^2 || ^3",
+    "kipchak/driver-config": "^1",
+    "psr/log": "^1 || ^2 || ^3"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "middleware",
+      "config": null,
+      "configName": null,
+      "initialise": "\\Kipchak\\Middleware\\Error\\Error::initialise($app);",
+      "after": [],
+      "before": [],
+      "docs": "https://kipchak.dev/docs/mw-error",
+      "note": "Initialised first and last in middlewares/middlewares.php; every project created from the starter has it."
+    }
+  }
+}

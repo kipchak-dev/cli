@@ -15,6 +15,8 @@ final class Application extends SymfonyApplication
 
         $this->addCommands([
             new ProjectCommand(),
+            new NewCommand(),
+            new AddCommand(),
         ]);
     }
 

@@ -1,0 +1,21 @@
+{
+  "name": "kipchak/driver-filecache",
+  "require": {
+    "symfony/cache": "^8",
+    "kipchak/core": "^2 || ^3"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "driver",
+      "config": null,
+      "configName": null,
+      "initialise": "\\Kipchak\\Driver\\Filecache\\Filecache::initialise($container);",
+      "after": [
+        "kipchak/driver-config",
+        "kipchak/driver-logger"
+      ],
+      "before": [],
+      "docs": "https://kipchak.dev/docs/driver-filecache"
+    }
+  }
+}

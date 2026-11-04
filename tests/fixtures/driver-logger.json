@@ -1,0 +1,21 @@
+{
+  "name": "kipchak/driver-logger",
+  "require": {
+    "kipchak/core": "^2 || ^3",
+    "monolog/monolog": "^3.9",
+    "kipchak/driver-config": "^1"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "driver",
+      "config": null,
+      "configName": null,
+      "initialise": "\\Kipchak\\Driver\\Logger\\Logger::initialise($container);",
+      "after": [
+        "kipchak/driver-config"
+      ],
+      "before": [],
+      "docs": "https://kipchak.dev/docs/driver-logger"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "kipchak/driver-doctrine",
+  "require": {
+    "doctrine/orm": "^4",
+    "kipchak/core": "^2 || ^3",
+    "kipchak/driver-memcached": "^1",
+    "kipchak/driver-filecache": "^1",
+    "kipchak/driver-logger": "^1"
+  },
+  "extra": {
+    "kipchak": {
+      "type": "driver",
+      "config": "sample.config.php",
+      "configName": "kipchak.doctrine.php",
+      "initialise": "\\Kipchak\\Driver\\Doctrine\\Doctrine::initialise($container);",
+      "after": [
+        "kipchak/driver-config",
+        "kipchak/driver-logger",
+        "kipchak/driver-filecache",
+        "kipchak/driver-memcached"
+      ],
+      "before": [],
+      "docs": "https://kipchak.dev/docs/driver-doctrine"
+    }
+  }
+}
