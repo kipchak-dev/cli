@@ -85,6 +85,31 @@ final class AddAndNewCommandTest extends TestCase
         self::assertFileDoesNotExist($this->root . '/config/kipchak.anthropic.php');
     }
 
+    public function testADryRunNeverInstallsAPackage(): void
+    {
+        $composer = $this->composer();
+        $composerJson = file_get_contents($this->root . '/composer.json');
+        $tester = new CommandTester(new AddCommand($composer));
+
+        $code = $tester->execute(['package' => 'kipchak/driver-doctrine', '--project-dir' => $this->root, '--dry-run' => true]);
+
+        self::assertSame(ExitCode::SUCCESS, $code);
+        self::assertSame([], $composer->calls, 'A dry run runs no Composer command for a package named in full.');
+        self::assertSame($composerJson, file_get_contents($this->root . '/composer.json'));
+        self::assertStringContainsString('is not installed yet', $tester->getDisplay());
+    }
+
+    public function testADryRunResolvesAShortNameReadOnly(): void
+    {
+        $composer = $this->composer();
+        new CommandTester(new AddCommand($composer))->execute(['package' => 'doctrine', '--project-dir' => $this->root, '--dry-run' => true]);
+
+        self::assertNotEmpty($composer->calls);
+        foreach ($composer->calls as $call) {
+            self::assertSame('show', $call[0], 'Only `composer show`, which changes nothing, may run in a dry run.');
+        }
+    }
+
     public function testAnUnknownPackageExitsWithOne(): void
     {
         $composer = new class extends Composer {
