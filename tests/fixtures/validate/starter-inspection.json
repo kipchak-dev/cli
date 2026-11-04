@@ -1,0 +1,250 @@
+{
+    "document": {
+        "openapi": "3.0.0",
+        "info": {
+            "title": "Kipchak Starter API",
+            "description": "An API built with Kipchak.",
+            "version": "1.0.0"
+        },
+        "servers": [
+            {
+                "url": "http://localhost:8080",
+                "description": "Local development"
+            }
+        ],
+        "paths": {
+            "/status": {
+                "get": {
+                    "tags": [
+                        "Status"
+                    ],
+                    "summary": "Check that the API is running",
+                    "operationId": "getStatus",
+                    "responses": {
+                        "200": {
+                            "description": "The API is running.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "properties": {
+                                            "code": {
+                                                "type": "integer",
+                                                "example": 200
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "example": "OK"
+                                            },
+                                            "data": {
+                                                "$ref": "#/components/schemas/ApiStatus"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/v1/sultans": {
+                "get": {
+                    "tags": [
+                        "Sultans"
+                    ],
+                    "summary": "List the sultans",
+                    "operationId": "listSultans",
+                    "responses": {
+                        "200": {
+                            "description": "Every sultan, in order of reign.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "properties": {
+                                            "code": {
+                                                "type": "integer",
+                                                "example": 200
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "example": "OK"
+                                            },
+                                            "data": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/components/schemas/MamlukSultan"
+                                                }
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/v1/sultans/{id}": {
+                "get": {
+                    "tags": [
+                        "Sultans"
+                    ],
+                    "summary": "Get one sultan",
+                    "operationId": "getSultan",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "integer",
+                                "example": 4
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "The sultan.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "properties": {
+                                            "code": {
+                                                "type": "integer",
+                                                "example": 200
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "example": "OK"
+                                            },
+                                            "data": {
+                                                "$ref": "#/components/schemas/MamlukSultan"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            "$ref": "#/components/responses/NotFound"
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "ApiStatus": {
+                    "description": "Whether the API is running.",
+                    "properties": {
+                        "status": {
+                            "description": "Always alive while the API answers.",
+                            "type": "string",
+                            "example": "alive"
+                        }
+                    },
+                    "type": "object"
+                },
+                "MamlukSultan": {
+                    "description": "A sultan of the Mamluk Sultanate.",
+                    "properties": {
+                        "id": {
+                            "description": "Identifier of the sultan.",
+                            "type": "integer",
+                            "example": 4
+                        },
+                        "name": {
+                            "description": "Name by which the sultan is known.",
+                            "type": "string",
+                            "example": "Baybars"
+                        },
+                        "reignFrom": {
+                            "description": "Year the reign began (CE).",
+                            "type": "integer",
+                            "example": 1260
+                        },
+                        "reignTo": {
+                            "description": "Year the reign ended (CE).",
+                            "type": "integer",
+                            "example": 1277
+                        }
+                    },
+                    "type": "object"
+                }
+            },
+            "responses": {
+                "NotFound": {
+                    "description": "The resource does not exist.",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "code": {
+                                        "description": "The top of the OpenAPI document: the API's title and version, where it is served, and the responses that\noperations share. Operations live on controllers and schemas on DTOs.",
+                                        "type": "integer",
+                                        "example": 404
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "example": "RESOURCE_NOT_FOUND"
+                                    },
+                                    "data": {
+                                        "type": "string",
+                                        "example": "No sultan has the ID 99."
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "tags": [
+            {
+                "name": "Sultans",
+                "description": "The sultans of the Mamluk Sultanate."
+            },
+            {
+                "name": "Status",
+                "description": "Status"
+            }
+        ]
+    },
+    "warnings": [],
+    "routes": [
+        {
+            "methods": [
+                "GET"
+            ],
+            "pattern": "/v1/sultans",
+            "handler": "Api\\Controllers\\v1\\Sultans::list",
+            "name": null
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "pattern": "/v1/sultans/{id:[0-9]+}",
+            "handler": "Api\\Controllers\\v1\\Sultans::get",
+            "name": null
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "pattern": "/status",
+            "handler": "Api\\Controllers\\Status::get",
+            "name": null
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "pattern": "/openapi.json",
+            "handler": "Api\\Controllers\\OpenApi::get",
+            "name": null
+        }
+    ]
+}

@@ -22,6 +22,8 @@ final class Application extends SymfonyApplication
             new MakeResourceCommand(),
             new MakeEndpointCommand(),
             new MakeMiddlewareCommand(),
+            new RoutesCommand(),
+            new OpenApiValidateCommand(),
         ]);
     }
 
