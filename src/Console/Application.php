@@ -20,6 +20,8 @@ final class Application extends SymfonyApplication
             new MakeDtoCommand(),
             new MakeControllerCommand(),
             new MakeResourceCommand(),
+            new MakeEndpointCommand(),
+            new MakeMiddlewareCommand(),
         ]);
     }
 
