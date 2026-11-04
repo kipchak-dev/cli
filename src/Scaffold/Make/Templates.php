@@ -38,13 +38,7 @@ final class Templates
      */
     public static function dto(string $namespace, Resource $resource, array $fields): string
     {
-        $uses = [];
-        foreach ($fields as $field) {
-            if ($field->type === 'datetime') {
-                $uses[] = 'use DateTimeImmutable;';
-            }
-        }
-        $uses[] = 'use OpenApi\\Attributes as OA;';
+        $uses = ['use OpenApi\\Attributes as OA;'];
 
         // Required fields first: PHP allows no required parameter after an optional (nullable, defaulted) one.
         usort($fields, static fn (Field $a, Field $b): int => (int) $a->nullable <=> (int) $b->nullable);

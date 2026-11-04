@@ -58,6 +58,19 @@ final class StarterComparisonTest extends TestCase
         self::assertSame(self::normalise($starter), self::normalise($generated[$generatedPath]));
     }
 
+    public function testADatetimeIsAnIso8601String(): void
+    {
+        $changeSet = new MakeGenerators()->dto(
+            new Project(['Api\\' => 'api/'], '3.16'),
+            new Resource('Orders'),
+            Field::parseList('id:int,placedAt:datetime'),
+        );
+        $dto = $changeSet->changes[0]->content;
+
+        self::assertStringContainsString("format: 'date-time', example: '2026-01-31T09:00:00+00:00')]\n        public string \$placedAt,", $dto);
+        self::assertStringNotContainsString('DateTimeImmutable', $dto);
+    }
+
     /**
      * Removes what is example data rather than code: string and number literals, and the model's example rows.
      */

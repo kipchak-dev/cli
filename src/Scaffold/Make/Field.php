@@ -65,9 +65,11 @@ final readonly class Field
      */
     public function phpType(): string
     {
+        // A datetime is an ISO 8601 string: that is what Http\Response::json() writes and what format date-time means.
+        // A DateTimeImmutable property would be encoded as PHP's object form, not as the string the schema promises.
         $type = match (true) {
             $this->list => 'array',
-            $this->type === 'datetime' => 'DateTimeImmutable',
+            $this->type === 'datetime' => 'string',
             default => $this->type,
         };
 
