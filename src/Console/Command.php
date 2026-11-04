@@ -64,8 +64,8 @@ abstract class Command extends SymfonyCommand
             return $this->fail($input, $output, $exception->getMessage(), ExitCode::CANNOT_RUN);
         } catch (ConflictException $exception) {
             return $this->fail($input, $output, $exception->getMessage(), ExitCode::FAILURE, ['conflicts' => $exception->conflicts]);
-        } catch (\UnexpectedValueException $exception) {
-            // A request the tool understood but cannot satisfy: an unknown package name, a dependency cycle.
+        } catch (\UnexpectedValueException | \InvalidArgumentException $exception) {
+            // A request the tool cannot satisfy: an unknown package name, a dependency cycle, an invalid field or name.
             return $this->fail($input, $output, $exception->getMessage(), ExitCode::FAILURE);
         }
     }

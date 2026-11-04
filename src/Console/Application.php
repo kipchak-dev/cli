@@ -17,6 +17,9 @@ final class Application extends SymfonyApplication
             new ProjectCommand(),
             new NewCommand(),
             new AddCommand(),
+            new MakeDtoCommand(),
+            new MakeControllerCommand(),
+            new MakeResourceCommand(),
         ]);
     }
 
