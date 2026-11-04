@@ -1,0 +1,45 @@
+{
+    "name": "kipchak/cli",
+    "type": "library",
+    "description": "The command-line tool for the Kipchak API Development Kit (ADK): scaffolding into files the project owns, kipchak add, and OpenAPI validation",
+    "keywords": [
+        "APIs",
+        "Kipchak",
+        "CLI",
+        "Scaffolding",
+        "OpenAPI"
+    ],
+    "homepage": "https://kipchak.dev/docs/cli",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mamluk",
+            "homepage": "https://mamluk.net"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "nikic/php-parser": "^5.4",
+        "sebastian/diff": "^6.0 || ^7.0",
+        "symfony/console": "^7.3 || ^8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kipchak\\Cli\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kipchak\\Cli\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/kipchak"
+    ],
+    "scripts": {
+        "test": "phpunit"
+    }
+}
