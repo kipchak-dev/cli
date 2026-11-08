@@ -134,6 +134,25 @@ final class OpenApiChecksTest extends TestCase
         self::assertSame([$check], array_values(array_unique(array_map(static fn (string $s): string => strtok($s, ' '), $added))));
     }
 
+    public function testAPagedListMayStateItsMetaInTheEnvelope(): void
+    {
+        // Response::json(..., meta: [...]) writes {"code", "status", "meta", "data"} for a paged list.
+        $paged = self::starter();
+        $paged['document']['paths']['/v1/sultans']['get']['responses']['200']['content']['application/json']['schema'] = [
+            'properties' => [
+                'code' => ['type' => 'integer', 'example' => 200],
+                'status' => ['type' => 'string', 'example' => 'OK'],
+                'meta' => ['type' => 'object', 'properties' => ['page' => ['type' => 'integer'], 'total' => ['type' => 'integer']]],
+                'data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/MamlukSultan']],
+            ],
+        ];
+        self::assertSame([], self::summary(self::check($paged)));
+
+        // Control: a property that is not part of the envelope is still an inline object.
+        $paged['document']['paths']['/v1/sultans']['get']['responses']['200']['content']['application/json']['schema']['properties']['next'] = ['type' => 'string'];
+        self::assertContains('KIP-004 GET /v1/sultans response 200 (application/json)', self::summary(self::check($paged)));
+    }
+
     public function testWhatIsNotSentInTheEnvelopeIsNotReportedByKip006(): void
     {
         $bare = static function (array $i): array {

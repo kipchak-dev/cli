@@ -23,9 +23,10 @@ final class OpenApiChecks
     private const string PARAMETER = '/\{(\w+)(?::((?:[^{}]|\{[^{}]*\})+))?\}/';
 
     /**
-     * The response envelope Http\Response::json() writes, which a response may define inline around its data.
+     * The response envelope Http\Response::json() writes (meta only for a paged list or other endpoint metadata), which
+     * a response may define inline around its data.
      */
-    private const array ENVELOPE = ['code', 'status', 'data'];
+    private const array ENVELOPE = ['code', 'status', 'meta', 'data'];
 
     /**
      * The extension that marks a response, or an operation, as not sent in the envelope.
