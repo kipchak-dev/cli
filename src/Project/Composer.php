@@ -10,9 +10,12 @@ namespace Kipchak\Cli\Project;
  */
 class Composer
 {
-    public function require(string $root, string $package): int
+    /**
+     * @param list<string> $alongside other requirements to add in the same command, such as "doctrine/orm:^4@dev"
+     */
+    public function require(string $root, string $package, array $alongside = []): int
     {
-        return $this->run(['require', $package], $root);
+        return $this->run(['require', $package, ...$alongside], $root);
     }
 
     public function createProject(string $directory, ?string $version): int

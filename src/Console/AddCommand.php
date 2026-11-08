@@ -9,6 +9,7 @@ use Kipchak\Cli\Project\InstalledPackages;
 use Kipchak\Cli\Project\ProjectReader;
 use Kipchak\Cli\Scaffold\Add\AddPackages;
 use Kipchak\Cli\Scaffold\Add\DependencyResolver;
+use Kipchak\Cli\Scaffold\ChangeSet;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -18,6 +19,19 @@ use UnexpectedValueException;
 #[AsCommand(name: 'add', description: 'Install a Kipchak driver or middleware, copy its configuration and initialise it')]
 final class AddCommand extends Command
 {
+    /**
+     * Packages that need a dependency Doctrine or another maintainer has not released as stable, with the constraint
+     * the project must require beside them. An inline stability flag lets that one package be a development version
+     * while the rest of the project stays stable. Remove an entry when its dependency is released: Composer ranks a
+     * branch such as 4.0.x-dev above 4.0.0, so the flag would keep projects on the branch.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const array UNRELEASED_DEPENDENCIES = [
+        // doctrine/orm 4 is only available as the 4.0.x-dev branch.
+        'kipchak/driver-doctrine' => ['doctrine/orm' => '^4@dev'],
+    ];
+
     public function __construct(private readonly Composer $composer = new Composer())
     {
         parent::__construct();
@@ -42,6 +56,7 @@ final class AddCommand extends Command
             $root = $this->projectRoot($input);
             $name = $this->packageName($root, (string) $input->getArgument('package'));
             $dryRun = (bool) $input->getOption('dry-run');
+            $notes = [];
 
             if (!InstalledPackages::read($root)->isInstalled($name)) {
                 if ($dryRun) {
@@ -53,8 +68,11 @@ final class AddCommand extends Command
 
                     return ExitCode::SUCCESS;
                 }
-                if ($this->composer->require($root, $name) !== 0) {
-                    return $this->fail($input, $output, "composer require {$name} failed; nothing else was changed.", ExitCode::FAILURE);
+                [$alongside, $notes] = $this->unreleasedDependencies($root, $name);
+                if ($this->composer->require($root, $name, $alongside) !== 0) {
+                    $command = implode(' ', [$name, ...$alongside]);
+
+                    return $this->fail($input, $output, "composer require {$command} failed; nothing else was changed.", ExitCode::FAILURE);
                 }
             }
 
@@ -71,8 +89,38 @@ final class AddCommand extends Command
 
             $project = new ProjectReader()->read($root, AddPackages::filesNeeded($packages));
 
-            return $this->applyChangeSet($input, $output, new AddPackages()->generate($project, $packages, $installed->metadata, $samples));
+            $changeSet = new AddPackages()->generate($project, $packages, $installed->metadata, $samples);
+
+            return $this->applyChangeSet($input, $output, new ChangeSet($changeSet->changes, [...$notes, ...$changeSet->messages], $changeSet->settings));
         });
+    }
+
+    /**
+     * The requirements to add beside the package for its unreleased dependencies, and a note on each. None when the
+     * project already requires the dependency (its own constraint stands) or accepts development versions throughout.
+     *
+     * @return array{0: list<string>, 1: list<string>} the requirements, as name:constraint, and the notes
+     */
+    private function unreleasedDependencies(string $root, string $name): array
+    {
+        $composer = json_decode((string) @file_get_contents($root . '/composer.json'), true);
+        $composer = is_array($composer) ? $composer : [];
+        if (($composer['minimum-stability'] ?? 'stable') === 'dev') {
+            return [[], []];
+        }
+
+        $alongside = [];
+        $notes = [];
+        foreach (self::UNRELEASED_DEPENDENCIES[$name] ?? [] as $dependency => $constraint) {
+            if (isset($composer['require'][$dependency]) || isset($composer['require-dev'][$dependency])) {
+                continue;
+            }
+            $alongside[] = "{$dependency}:{$constraint}";
+            $notes[] = "{$dependency} " . ltrim((string) strtok($constraint, '@'), '^~') . " is not yet a stable release, so composer.json now requires \"{$dependency}\": \"{$constraint}\": "
+                . 'only that package may be a development version.';
+        }
+
+        return [$alongside, $notes];
     }
 
     /**
