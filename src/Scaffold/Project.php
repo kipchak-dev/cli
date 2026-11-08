@@ -26,6 +26,16 @@ final readonly class Project
         return (int) explode('.', ltrim($this->coreVersion, 'v'))[0];
     }
 
+    /**
+     * Whether the project's core has Dto\Field and Dto\Input (3.19). A development version is taken to have them.
+     */
+    public function hasInputValidation(): bool
+    {
+        $version = ltrim($this->coreVersion, 'v');
+
+        return !ctype_digit($version[0] ?? '') || version_compare($version, '3.19', '>=');
+    }
+
     public function file(string $path): ?string
     {
         return $this->files[$path] ?? null;

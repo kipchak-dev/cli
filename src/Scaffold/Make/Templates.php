@@ -36,9 +36,10 @@ final class Templates
     /**
      * @param list<Field> $fields
      */
-    public static function dto(string $namespace, Resource $resource, array $fields): string
+    public static function dto(string $namespace, Resource $resource, array $fields, bool $rules = false): string
     {
-        $uses = ['use OpenApi\\Attributes as OA;'];
+        $uses = $rules ? ['use Kipchak\\Core\\Components\\Dto\\Field;'] : [];
+        $uses[] = 'use OpenApi\\Attributes as OA;';
 
         // Required fields first: PHP allows no required parameter after an optional (nullable, defaulted) one.
         usort($fields, static fn (Field $a, Field $b): int => (int) $a->nullable <=> (int) $b->nullable);
@@ -54,7 +55,9 @@ final class Templates
                 : 'The ' . Field::words($field->name) . " of the {$resource->singularWords}.";
             $readOnly = $field->name === 'id' && $resource->crud ? ', readOnly: true' : '';
             $default = $field->nullable ? ' = null' : '';
-            $properties[] = '        #[OA\\Property(description: ' . var_export($description, true) . ", {$field->openApiArguments()}{$readOnly})]\n"
+            // The identifier is set by the server, so it has no rules to enforce.
+            $attribute = $rules && $field->name !== 'id' ? 'Field' : 'OA\\Property';
+            $properties[] = "        #[{$attribute}(description: " . var_export($description, true) . ", {$field->openApiArguments()}{$readOnly})]\n"
                 . "        public {$field->phpType()} \${$field->name}{$default},";
         }
 
@@ -63,6 +66,7 @@ final class Templates
             'uses' => implode("\n", array_unique($uses)),
             'dto' => $resource->dto,
             'schemaDescription' => "A {$resource->singularWords}.",
+            'rulesNote' => $rules ? " * A Field also takes rules, such as maxLength: they appear in the document and are enforced on a request body read\n * with Dto\\Input, but not on stored rows, so tightening a rule leaves old rows readable.\n" : '',
             'constructorDoc' => $docParams === [] ? '' : "    /**\n" . implode("\n", $docParams) . "\n     */\n",
             'properties' => implode("\n\n", $properties),
         ]);

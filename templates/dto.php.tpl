@@ -9,7 +9,7 @@ namespace {{namespace}};
 /**
  * A DTO is the contract for one shape of data. The same class describes the response and, without the fields the
  * server sets, the request body; its attributes become a schema in the OpenAPI document.
- */
+{{rulesNote}} */
 #[OA\Schema(schema: '{{dto}}', description: '{{schemaDescription}}')]
 final readonly class {{dto}}
 {

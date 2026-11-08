@@ -24,7 +24,7 @@ final class MakeGenerators
         $names = new Names($project, $version);
         $path = $names->directory('DataTransferObjects') . $resource->dto . '.php';
 
-        return new ChangeSet([FileChange::create($path, Templates::dto($names->namespace('DataTransferObjects'), $resource, $fields))]);
+        return new ChangeSet([FileChange::create($path, Templates::dto($names->namespace('DataTransferObjects'), $resource, $fields, $project->hasInputValidation()))]);
     }
 
     public function controller(Project $project, string $controller, string $version = 'v1'): ChangeSet
@@ -53,6 +53,7 @@ final class MakeGenerators
         $names = new Names($project, $version);
         $values = Templates::resourceValues($resource, $version) + self::responseValues($style ?? ResponseStyle::longForm(), $resource);
         $crud = $resource->crud;
+        $input = $project->hasInputValidation();
 
         $dtoNamespace = $names->namespace('DataTransferObjects');
         $modelNamespace = $names->namespace('Models', versioned: false);
@@ -62,17 +63,19 @@ final class MakeGenerators
             'namespace' => $modelNamespace,
             'model' => $resource->controller,
             'dtoClass' => "{$dtoNamespace}\\{$resource->dto}",
-            'crudUses' => $crud ? "use CuyZ\\Valinor\\Mapper\\MappingError;\n" : '',
+            'crudUses' => $crud && !$input ? "use CuyZ\\Valinor\\Mapper\\MappingError;\n" : '',
             'rows' => implode("\n", [$this->row($fields, 1, '        ') . ',', $this->row($fields, 2, '        ') . ',']),
-            'crudMethods' => $crud ? Templates::render('model-crud-methods.php', $values) : '',
+            'crudMethods' => $crud ? Templates::render($input ? 'model-crud-methods-input.php' : 'model-crud-methods.php', $values) : '',
         ]);
 
         $controller = Templates::render('controller.php', $values + [
             'namespace' => $controllerNamespace,
             'modelClass' => "{$modelNamespace}\\{$resource->controller}",
-            'crudUsesBefore' => $crud ? "use CuyZ\\Valinor\\Mapper\\MappingError;\nuse JsonException;\n" : '',
-            'crudUsesAfter' => $crud ? "use Slim\\Exception\\HttpBadRequestException;\n" : '',
-            'crudMethods' => $crud ? Templates::render('controller-crud-methods.php', $values) : '',
+            'dtoUse' => $crud && $input ? "use {$dtoNamespace}\\{$resource->dto};\n" : '',
+            'crudUsesBefore' => $crud && !$input ? "use CuyZ\\Valinor\\Mapper\\MappingError;\nuse JsonException;\n" : '',
+            'crudUsesInput' => $crud && $input ? "use Kipchak\\Core\\Components\\Dto\\Input;\n" : '',
+            'crudUsesAfter' => $crud && !$input ? "use Slim\\Exception\\HttpBadRequestException;\n" : '',
+            'crudMethods' => $crud ? Templates::render($input ? 'controller-crud-methods-input.php' : 'controller-crud-methods.php', $values) : '',
         ]);
 
         $controllers = "Controllers\\{$version}\\{$resource->controller}::class";
@@ -95,7 +98,7 @@ final class MakeGenerators
         ]);
 
         $changes = [
-            FileChange::create($names->directory('DataTransferObjects') . $resource->dto . '.php', Templates::dto($dtoNamespace, $resource, $fields)),
+            FileChange::create($names->directory('DataTransferObjects') . $resource->dto . '.php', Templates::dto($dtoNamespace, $resource, $fields, $input)),
             FileChange::create($names->directory('Models', versioned: false) . $resource->controller . '.php', $model),
             FileChange::create($names->directory('Controllers') . $resource->controller . '.php', $controller),
             FileChange::create("routes/{$version}/{$resource->segment}.php", $routes),

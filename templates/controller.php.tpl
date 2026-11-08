@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace {{namespace}};
 
-use {{modelClass}} as {{controller}}Model;
+{{dtoUse}}use {{modelClass}} as {{controller}}Model;
 {{crudUsesBefore}}use Kipchak\Core\Components\Controllers;
-use Kipchak\Core\Components\Http;
+{{crudUsesInput}}use Kipchak\Core\Components\Http;
 use OpenApi\Attributes as OA;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
