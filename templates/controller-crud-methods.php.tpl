@@ -100,11 +100,11 @@
     }
 
     /**
-     * What is wrong with a body that does not match the DTO, one sentence per problem.
+     * What is wrong with a body that does not match the DTO, one sentence per problem, each naming its field.
      */
     private function problems(MappingError $error): string
     {
-        $problems = array_map(static fn ($message): string => (string) $message, iterator_to_array($error->messages()->errors()));
+        $problems = array_map(static fn ($message): string => "{$message->path()}: {$message}", iterator_to_array($error->messages()->errors()));
 
         return 'The {{singularWords}} is not valid: ' . implode(' ', $problems);
     }

@@ -9,6 +9,7 @@ use Kipchak\Cli\Project\InstalledPackages;
 use Kipchak\Cli\Project\ProjectReader;
 use Kipchak\Cli\Scaffold\Add\AddPackages;
 use Kipchak\Cli\Scaffold\Add\DependencyResolver;
+use Kipchak\Cli\Scaffold\Add\DoctrineStart;
 use Kipchak\Cli\Scaffold\ChangeSet;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -30,6 +31,16 @@ final class AddCommand extends Command
     public const array UNRELEASED_DEPENDENCIES = [
         // doctrine/orm 4 is only available as the 4.0.x-dev branch.
         'kipchak/driver-doctrine' => ['doctrine/orm' => '^4@dev'],
+    ];
+
+    /**
+     * Kipchak drivers a package can use but does not need, which are initialised only when asked for with their own
+     * `kipchak add`. driver-doctrine 1.54 and earlier still require driver-memcached in composer.json.
+     *
+     * @var array<string, list<string>>
+     */
+    public const array OPTIONAL_DRIVERS = [
+        DoctrineStart::PACKAGE => ['kipchak/driver-memcached'],
     ];
 
     public function __construct(private readonly Composer $composer = new Composer())
@@ -77,22 +88,46 @@ final class AddCommand extends Command
             }
 
             $installed = InstalledPackages::read($root);
-            $packages = new DependencyResolver()->resolve($name, $installed->requires, $installed->metadata);
+            $packages = new DependencyResolver()->resolve($name, $this->withoutOptionalDrivers($installed->requires), $installed->metadata);
 
             $samples = [];
             foreach ($packages as $package) {
-                $sample = $installed->sample($package);
+                $sample = $package->name === DoctrineStart::PACKAGE ? DoctrineStart::config() : $installed->sample($package);
                 if ($sample !== null) {
                     $samples[$package->name] = $sample;
                 }
             }
 
-            $project = new ProjectReader()->read($root, AddPackages::filesNeeded($packages));
+            $project = new ProjectReader()->read($root, [...AddPackages::filesNeeded($packages), ...DoctrineStart::filesNeeded()]);
 
             $changeSet = new AddPackages()->generate($project, $packages, $installed->metadata, $samples);
+            $changes = $changeSet->changes;
+            $messages = [...$notes, ...$changeSet->messages];
 
-            return $this->applyChangeSet($input, $output, new ChangeSet($changeSet->changes, [...$notes, ...$changeSet->messages], $changeSet->settings));
+            // Only a project that is getting this configuration needs the directories it names and the note about it.
+            if (array_any($changes, static fn ($change): bool => $change->path === DoctrineStart::CONFIG)) {
+                $start = new DoctrineStart();
+                $changes = [...$changes, ...$start->changes($project)];
+                $messages = [...$messages, ...$start->messages()];
+            }
+
+            return $this->applyChangeSet($input, $output, new ChangeSet($changes, $messages, $changeSet->settings));
         });
+    }
+
+    /**
+     * @param array<string, list<string>> $requires
+     * @return array<string, list<string>>
+     */
+    private function withoutOptionalDrivers(array $requires): array
+    {
+        foreach (self::OPTIONAL_DRIVERS as $package => $optional) {
+            if (isset($requires[$package])) {
+                $requires[$package] = array_values(array_diff($requires[$package], $optional));
+            }
+        }
+
+        return $requires;
     }
 
     /**
