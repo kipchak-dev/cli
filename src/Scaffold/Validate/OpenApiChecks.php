@@ -27,6 +27,11 @@ final class OpenApiChecks
      */
     private const array ENVELOPE = ['code', 'status', 'data'];
 
+    /**
+     * The extension that marks a response, or an operation, as not sent in the envelope.
+     */
+    private const string OPT_OUT = 'x-kipchak-envelope';
+
     public function __construct(private readonly SchemaValidator $schemaValidator = new SchemaValidator()) {}
 
     /**
@@ -51,6 +56,7 @@ final class OpenApiChecks
             ...$this->operationFields($document),
             ...$this->inlineBodies($document),
             ...$this->schemaProperties($document),
+            ...($inspection->hasEnvelopeComponent('Success') ? [] : $this->unenvelopedSuccesses($document)),
         );
 
         return $findings;
@@ -335,6 +341,70 @@ final class OpenApiChecks
         }
 
         return $findings;
+    }
+
+    /**
+     * KIP-006: a JSON success is documented in the envelope Http\Response::json() sends it in, {code, status, data}, not as
+     * its data alone. Register kipchak/core's Envelope processor to state it, or define it inline. A route that answers
+     * with Http\Response::raw() is marked x-kipchak-envelope: false, on the response or the operation.
+     *
+     * Not run on a document the Envelope processor generated: it has wrapped every JSON success, and removed the marker
+     * from those it left alone on purpose.
+     *
+     * @param array<string, mixed> $document
+     * @return list<Finding>
+     */
+    private function unenvelopedSuccesses(array $document): array
+    {
+        $findings = [];
+        foreach ($this->operations($document) as [$method, $path, $operation]) {
+            if (($operation[self::OPT_OUT] ?? null) === false) {
+                continue;
+            }
+            foreach ((array) ($operation['responses'] ?? []) as $status => $response) {
+                $response = $this->dereference($document, $response);
+                if (!preg_match('/^2\d\d$/', (string) $status) || (string) $status === '204' || ($response[self::OPT_OUT] ?? null) === false) {
+                    continue;
+                }
+                foreach ((array) ($response['content'] ?? []) as $mediaType => $content) {
+                    if (preg_match('#^application/(.+\+)?json$#', (string) $mediaType) === 1 && is_array($content['schema'] ?? null)
+                        && !$this->isEnveloped($document, $content['schema'])) {
+                        $findings[] = new Finding('KIP-006', Severity::Warning, strtoupper($method) . " {$path} response {$status} ({$mediaType})",
+                            'The response is documented as its data alone, but Http\\Response::json() sends it in the envelope {code, status, data}. '
+                            . 'Register Kipchak\\Core\\OpenApi\\Envelope in Api\\Utils\\OpenApi, or mark a route that answers with Http\\Response::raw() x-kipchak-envelope: false.');
+                    }
+                }
+            }
+        }
+
+        return $findings;
+    }
+
+    /**
+     * Whether the schema states the envelope: code and data among its properties, or in a part of its allOf, here or
+     * in the component it refers to.
+     *
+     * @param array<string, mixed> $schema
+     */
+    private function isEnveloped(array $document, array $schema, int $depth = 0): bool
+    {
+        if ($depth > 5) {
+            return false;
+        }
+        if (isset($schema['$ref'])) {
+            return $this->isEnveloped($document, $this->dereference($document, $schema), $depth + 1);
+        }
+        $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+        if (array_key_exists('code', $properties) && array_key_exists('data', $properties)) {
+            return true;
+        }
+        foreach ((array) ($schema['allOf'] ?? []) as $part) {
+            if (is_array($part) && $this->isEnveloped($document, $part, $depth + 1)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

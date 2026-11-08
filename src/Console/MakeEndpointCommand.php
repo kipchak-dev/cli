@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kipchak\Cli\Console;
 
+use Kipchak\Cli\Project\Inspector;
 use Kipchak\Cli\Scaffold\Make\Endpoint;
 use Kipchak\Cli\Scaffold\Make\MakeGenerators;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -15,6 +16,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'make:endpoint', description: 'Add an operation to an existing controller, and its route')]
 final class MakeEndpointCommand extends Command
 {
+    public function __construct(private readonly Inspector $inspector = new Inspector())
+    {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         parent::configure();
@@ -48,7 +54,7 @@ final class MakeEndpointCommand extends Command
             $files = MakeGenerators::endpointFiles($this->project($input), $endpoint, $routeFiles);
             $project = $this->project($input, [...$files, 'tests/OpenApiTest.php']);
 
-            return $this->applyChangeSet($input, $output, new MakeGenerators()->endpoint($project, $endpoint));
+            return $this->applyChangeSet($input, $output, new MakeGenerators()->endpoint($project, $endpoint, $this->responseStyle($input, $this->inspector)));
         });
     }
 }

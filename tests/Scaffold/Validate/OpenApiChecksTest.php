@@ -111,6 +111,11 @@ final class OpenApiChecksTest extends TestCase
 
                 return $i;
             }, 'schema MamlukSultan, property name'],
+            'a success documented as its data alone' => ['KIP-006', static function (array $i): array {
+                $i['document']['paths']['/v1/sultans/{id}']['get']['responses']['200']['content']['application/json']['schema'] = ['$ref' => '#/components/schemas/MamlukSultan'];
+
+                return $i;
+            }, 'GET /v1/sultans/{id} response 200 (application/json)'],
         ];
     }
 
@@ -127,6 +132,47 @@ final class OpenApiChecksTest extends TestCase
         self::assertContains("{$check} {$location}", $added);
         // Nothing but the check concerned reports the defect.
         self::assertSame([$check], array_values(array_unique(array_map(static fn (string $s): string => strtok($s, ' '), $added))));
+    }
+
+    public function testWhatIsNotSentInTheEnvelopeIsNotReportedByKip006(): void
+    {
+        $bare = static function (array $i): array {
+            $i['document']['paths']['/v1/sultans/{id}']['get']['responses']['200']['content']['application/json']['schema'] = ['$ref' => '#/components/schemas/MamlukSultan'];
+
+            return $i;
+        };
+        $kip006 = static fn (array $i): array => array_values(array_filter(self::summary(self::check($i)), static fn (string $s): bool => str_starts_with($s, 'KIP-006')));
+
+        self::assertSame(['KIP-006 GET /v1/sultans/{id} response 200 (application/json)'], $kip006($bare(self::starter())), 'Control');
+
+        $optedOutResponse = $bare(self::starter());
+        $optedOutResponse['document']['paths']['/v1/sultans/{id}']['get']['responses']['200']['x-kipchak-envelope'] = false;
+        self::assertSame([], $kip006($optedOutResponse), 'x-kipchak-envelope: false on the response');
+
+        $optedOutOperation = $bare(self::starter());
+        $optedOutOperation['document']['paths']['/v1/sultans/{id}']['get']['x-kipchak-envelope'] = false;
+        self::assertSame([], $kip006($optedOutOperation), 'x-kipchak-envelope: false on the operation');
+
+        $notJson = $bare(self::starter());
+        $responses = &$notJson['document']['paths']['/v1/sultans/{id}']['get']['responses'];
+        $responses['200']['content'] = ['text/csv' => ['schema' => ['type' => 'string']]];
+        unset($responses);
+        self::assertSame([], $kip006($notJson), 'Not JSON');
+
+        $starter44 = json_decode((string) file_get_contents(__DIR__ . '/../../fixtures/validate/starter-4.4-inspection.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame([], self::summary(self::check($starter44)), 'Starter 4.4: the Envelope processor states each success through allOf');
+
+        // Envelope leaves a route marked x-kipchak-envelope: false as declared, and removes the marker.
+        $starter44['document']['paths']['/v1/raw']['get'] = ['operationId' => 'raw', 'summary' => 'Passed on', 'tags' => ['Sultans'], 'responses' => [
+            '200' => ['description' => 'The body of another service.', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/MamlukSultan']]]],
+        ]];
+        $starter44['routes'][] = ['methods' => ['GET'], 'pattern' => '/v1/raw', 'handler' => '', 'name' => null];
+        self::assertSame([], self::summary(self::check($starter44)), 'A route Envelope left alone on purpose');
+
+        $shared = $bare(self::starter());
+        $shared['document']['components']['responses']['Sultan'] = $shared['document']['paths']['/v1/sultans']['get']['responses']['200'];
+        $shared['document']['paths']['/v1/sultans/{id}']['get']['responses']['200'] = ['$ref' => '#/components/responses/Sultan'];
+        self::assertSame([], $kip006($shared), 'A shared response that states the envelope');
     }
 
     public function testAnIgnoredRouteIsNotReported(): void

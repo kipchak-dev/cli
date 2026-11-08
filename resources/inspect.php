@@ -7,7 +7,9 @@
  *     php inspect.php <project root> [--no-document] [--no-routes]
  *
  * Writes one JSON object to standard output: the OpenAPI document and the warnings swagger-php logged while
- * generating it, and the routes the application registers. Anything the project prints while booting goes to
+ * generating it, which pipeline generated it ("project" for Api\Utils\OpenApi::generate(), "fallback" for this
+ * script's own) and whether the installed kipchak/core has the Envelope processor, and the routes the application
+ * registers. Anything the project prints while booting goes to
  * standard error instead. Exits with 2 when either part cannot be produced, with the reason in "error".
  *
  * This file uses nothing from kipchak/cli, whose classes are not loaded here.
@@ -55,10 +57,20 @@ try {
             }
         };
 
+        $envelope = class_exists(Kipchak\Core\OpenApi\Envelope::class);
         if (class_exists(Api\Utils\OpenApi::class) && method_exists(Api\Utils\OpenApi::class, 'generate')) {
+            $pipeline = 'project';
             $document = Api\Utils\OpenApi::generate($logger);
         } else {
-            $document = new OpenApi\Generator($logger)->generate([$root . '/api']);
+            // A project without the starter's generator: document responses as Kipchak sends them, when core can.
+            $pipeline = 'fallback';
+            $generator = new OpenApi\Generator($logger);
+            if ($envelope) {
+                $generator = $generator->withProcessorPipeline(
+                    static fn ($p) => $p->add(new Kipchak\Core\OpenApi\Envelope(errors: true)),
+                );
+            }
+            $document = $generator->generate([$root . '/api']);
         }
         if ($document === null) {
             $finish(['error' => 'No OpenAPI attributes were found in api/.'], 2);
@@ -66,6 +78,8 @@ try {
         // Decoded as objects, so that an empty object stays {} when encoded again.
         $result['document'] = json_decode($document->toJson(), flags: JSON_THROW_ON_ERROR);
         $result['warnings'] = $logger->warnings;
+        $result['pipeline'] = $pipeline;
+        $result['envelopeAvailable'] = $envelope;
     }
 
     if ($withRoutes) {

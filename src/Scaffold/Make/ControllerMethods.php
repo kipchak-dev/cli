@@ -19,7 +19,7 @@ final class ControllerMethods
 {
     private const string OPENAPI = 'OpenApi\\Attributes';
 
-    public function add(SourceFile $file, string $class, Endpoint $endpoint): SourceFile
+    public function add(SourceFile $file, string $class, Endpoint $endpoint, ResponseStyle $style): SourceFile
     {
         $node = $this->classNode($file, $class);
         foreach ($node->getMethods() as $method) {
@@ -33,7 +33,7 @@ final class ControllerMethods
             throw new UnexpectedValueException(
                 "The closing brace of {$class} is not on a line of its own, so kipchak cannot add a method to it. Add it by hand:\n"
                 . $this->method($endpoint, $this->tag($node, $endpoint), ['OA' => 'OA', 'Request' => 'ServerRequestInterface',
-                    'Response' => 'ResponseInterface', 'NotImplemented' => 'HttpNotImplementedException']),
+                    'Response' => 'ResponseInterface', 'NotImplemented' => 'HttpNotImplementedException'], $style),
             );
         }
 
@@ -50,7 +50,7 @@ final class ControllerMethods
 
         $node = $this->classNode($file, $class);
         $lines = $node->stmts === [] ? [] : [''];
-        array_push($lines, ...explode("\n", rtrim($this->method($endpoint, $this->tag($node, $endpoint), $names), "\n")));
+        array_push($lines, ...explode("\n", rtrim($this->method($endpoint, $this->tag($node, $endpoint), $names, $style), "\n")));
 
         return $file->insertAfter($node->getEndLine() - 1, ...$lines);
     }
@@ -58,7 +58,7 @@ final class ControllerMethods
     /**
      * @param array{OA: string, Request: string, Response: string, NotImplemented: string} $names
      */
-    private function method(Endpoint $endpoint, string $tag, array $names): string
+    private function method(Endpoint $endpoint, string $tag, array $names, ResponseStyle $style): string
     {
         $parameters = '';
         if ($endpoint->parameters() !== []) {
@@ -86,11 +86,7 @@ final class ControllerMethods
                 "            new {$names['OA']}\\Response(",
                 "                response: {$status},",
                 "                description: '" . ($status === 201 ? 'The result, as created.' : 'The result.') . "',",
-                "                content: new {$names['OA']}\\JsonContent(properties: [",
-                "                    new {$names['OA']}\\Property(property: 'code', type: 'integer', example: {$status}),",
-                "                    new {$names['OA']}\\Property(property: 'status', type: 'string', example: '" . ($status === 201 ? 'CREATED' : 'OK') . "'),",
-                "                    new {$names['OA']}\\Property(property: 'data', {$schema}),",
-                '                ]),',
+                $style->content($names['OA'], $status, $schema),
                 '            ),',
                 '',
             ]);
@@ -98,7 +94,7 @@ final class ControllerMethods
             $responses .= "            new {$names['OA']}\\Response(response: 400, description: 'The body is not valid.'),\n";
         }
         if ($endpoint->parameters() !== []) {
-            $responses .= "            new {$names['OA']}\\Response(response: 404, ref: '#/components/responses/NotFound'),\n";
+            $responses .= $style->notFound($names['OA'], 'Not found.') . "\n";
         }
 
         $hints = '';

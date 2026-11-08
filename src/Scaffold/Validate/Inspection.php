@@ -19,11 +19,16 @@ final readonly class Inspection
      * @param list<string> $warnings
      * @param ?list<array{methods: list<string>, pattern: string, handler: string, name: ?string}> $routes null when
      *     routes were not read
+     * @param ?string $pipeline what generated the document: "project" for the project's Api\Utils\OpenApi::generate(),
+     *     "fallback" for the inspection script's own generator, null when not known
+     * @param bool $envelopeAvailable whether the project's kipchak/core has the Envelope processor
      */
     public function __construct(
         public ?object $document,
         public array $warnings = [],
         public ?array $routes = null,
+        public ?string $pipeline = null,
+        public bool $envelopeAvailable = false,
     ) {}
 
     /**
@@ -60,7 +65,25 @@ final readonly class Inspection
             isset($data->document) && is_object($data->document) ? $data->document : null,
             array_values(array_map('strval', (array) ($data->warnings ?? []))),
             $routes,
+            isset($data->pipeline) ? (string) $data->pipeline : null,
+            (bool) ($data->envelopeAvailable ?? false),
         );
+    }
+
+    /**
+     * Whether kipchak/core's Envelope processor generated the component, Success or Error, in this document: the
+     * component is the processor's own, not one the API defines under the same name, and a response refers to it.
+     */
+    public function hasEnvelopeComponent(string $name): bool
+    {
+        $document = $this->documentArray();
+        $component = $document['components']['schemas'][$name] ?? null;
+        $description = $name === 'Error' ? "Kipchak's response envelope for an error" : "Kipchak's response envelope, as";
+        if (!is_array($component) || !str_starts_with((string) ($component['description'] ?? ''), $description)) {
+            return false;
+        }
+
+        return str_contains((string) json_encode($document['paths'] ?? []), (string) json_encode('#/components/schemas/' . $name));
     }
 
     /**

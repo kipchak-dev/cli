@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kipchak\Cli\Console;
 
+use Kipchak\Cli\Project\Inspector;
 use Kipchak\Cli\Scaffold\Make\Field;
 use Kipchak\Cli\Scaffold\Make\MakeGenerators;
 use Kipchak\Cli\Scaffold\Make\Resource;
@@ -16,6 +17,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'make:resource', description: 'Write a resource: its DTO, model, controller, routes and tests')]
 final class MakeResourceCommand extends MakeCommand
 {
+    public function __construct(private readonly Inspector $inspector = new Inspector())
+    {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         parent::configure();
@@ -37,7 +43,7 @@ final class MakeResourceCommand extends MakeCommand
             );
             $project = $this->project($input, ['tests/OpenApiTest.php', 'tests/ApiTestCase.php']);
 
-            return $this->applyChangeSet($input, $output, new MakeGenerators()->resource($project, $resource, $this->fields($input), $this->version($input)));
+            return $this->applyChangeSet($input, $output, new MakeGenerators()->resource($project, $resource, $this->fields($input), $this->version($input), $this->responseStyle($input, $this->inspector)));
         });
     }
 }

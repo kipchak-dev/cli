@@ -7,6 +7,7 @@ namespace Kipchak\Cli\Tests\Scaffold\Make;
 use Kipchak\Cli\Scaffold\Make\Field;
 use Kipchak\Cli\Scaffold\Make\MakeGenerators;
 use Kipchak\Cli\Scaffold\Make\Resource;
+use Kipchak\Cli\Scaffold\Make\ResponseStyle;
 use Kipchak\Cli\Scaffold\Project;
 use PHPUnit\Framework\TestCase;
 
@@ -20,16 +21,17 @@ final class StarterComparisonTest extends TestCase
     private const string FIXTURES = __DIR__ . '/../../fixtures/starter/sultans/';
 
     /**
-     * @return array<string, array{0: string, 1: string}> generated path => starter fixture
+     * @return array<string, array{0: string, 1: string, 2: bool}> generated path => starter fixture, in the envelope style
      */
     public static function files(): array
     {
         return [
-            'DTO' => ['api/DataTransferObjects/v1/MamlukSultan.php', 'MamlukSultan.php'],
-            'model' => ['api/Models/Sultans.php', 'Sultans.php'],
-            'controller' => ['api/Controllers/v1/Sultans.php', 'SultansController.php'],
-            'routes' => ['routes/v1/sultans.php', 'routes.php'],
-            'test' => ['tests/SultansTest.php', 'SultansTest.php'],
+            'DTO' => ['api/DataTransferObjects/v1/MamlukSultan.php', 'MamlukSultan.php', true],
+            'model' => ['api/Models/Sultans.php', 'Sultans.php', true],
+            'controller' => ['api/Controllers/v1/Sultans.php', 'SultansController.php', true],
+            'controller, long form' => ['api/Controllers/v1/Sultans.php', 'SultansControllerLongForm.php', false],
+            'routes' => ['routes/v1/sultans.php', 'routes.php', true],
+            'test' => ['tests/SultansTest.php', 'SultansTest.php', true],
         ];
     }
 
@@ -37,12 +39,13 @@ final class StarterComparisonTest extends TestCase
      * @dataProvider files
      */
     #[\PHPUnit\Framework\Attributes\DataProvider('files')]
-    public function testGeneratingSultansReproducesTheStarter(string $generatedPath, string $fixture): void
+    public function testGeneratingSultansReproducesTheStarter(string $generatedPath, string $fixture, bool $envelope): void
     {
         $changeSet = new MakeGenerators()->resource(
             new Project(['Api\\' => 'api/'], '3.16'),
             new Resource('Sultans', dto: 'MamlukSultan'),
             Field::parseList('id:int,name:string,reignFrom:int,reignTo:int'),
+            style: $envelope ? ResponseStyle::envelope() : ResponseStyle::longForm(),
         );
         $generated = [];
         foreach ($changeSet->changes as $change) {

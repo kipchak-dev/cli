@@ -47,11 +47,11 @@ final class MakeGenerators
      *
      * @param list<Field> $fields
      */
-    public function resource(Project $project, Resource $resource, array $fields, string $version = 'v1'): ChangeSet
+    public function resource(Project $project, Resource $resource, array $fields, string $version = 'v1', ?ResponseStyle $style = null): ChangeSet
     {
         $this->checkResourceFields($fields);
         $names = new Names($project, $version);
-        $values = Templates::resourceValues($resource, $version);
+        $values = Templates::resourceValues($resource, $version) + self::responseValues($style ?? ResponseStyle::longForm(), $resource);
         $crud = $resource->crud;
 
         $dtoNamespace = $names->namespace('DataTransferObjects');
@@ -121,7 +121,7 @@ final class MakeGenerators
      * A method on an existing controller and a route in the version's route file (§3.3.4). The route goes in the file
      * that already routes the controller, or routes/<version>/<controller>.php, which is created when absent.
      */
-    public function endpoint(Project $project, Endpoint $endpoint): ChangeSet
+    public function endpoint(Project $project, Endpoint $endpoint, ?ResponseStyle $style = null): ChangeSet
     {
         $names = new Names($project, $endpoint->version);
         $controllerPath = self::controllerPath($names, $endpoint->controller);
@@ -133,7 +133,7 @@ final class MakeGenerators
             throw new InvalidArgumentException("{$controllerPath} does not exist. Create it with: kipchak make:controller {$endpoint->controller}"
                 . ($endpoint->version === 'v1' ? '' : " --api-version={$endpoint->version}"));
         }
-        $changes = [FileChange::modify($controllerPath, $controller, new ControllerMethods()->add(new SourceFile($controller), $controllerClass, $endpoint)->content)];
+        $changes = [FileChange::modify($controllerPath, $controller, new ControllerMethods()->add(new SourceFile($controller), $controllerClass, $endpoint, $style ?? ResponseStyle::longForm())->content)];
         $messages = [];
 
         $routeGroups = new RouteGroups();
@@ -191,6 +191,24 @@ final class MakeGenerators
         }
 
         return new ChangeSet($changes, $messages);
+    }
+
+    /**
+     * The responses of a resource's controller, in the project's style.
+     *
+     * @return array<string, string>
+     */
+    private static function responseValues(ResponseStyle $style, Resource $resource): array
+    {
+        $item = "ref: '#/components/schemas/{$resource->dto}'";
+
+        return [
+            'envelopeNote' => $style->controllerNote(),
+            'listContent' => $style->content('OA', 200, "type: 'array', items: new OA\\Items({$item})"),
+            'itemContent' => $style->content('OA', 200, $item),
+            'createdContent' => $style->content('OA', 201, $item),
+            'notFound' => $style->notFound('OA', "No {$resource->singularWords} has that ID."),
+        ];
     }
 
     private static function controllerPath(Names $names, string $controller): string

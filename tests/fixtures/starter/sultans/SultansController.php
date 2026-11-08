@@ -15,6 +15,8 @@ use Slim\Exception\HttpNotFoundException;
 /**
  * Controllers are thin: they read the request, call a model and return a response. Each operation's attributes
  * describe it in the OpenAPI document served at /openapi.json, and refer to DTO schemas rather than defining them.
+ * A response declares only its data; the document states the envelope around it, and the error envelope for a
+ * 4xx that declares no content.
  *
  * Every controller extending Controllers\Base has the DI container in $this->container and the Logger driver's
  * logger in $this->logger.
@@ -31,11 +33,7 @@ final class Sultans extends Controllers\Base
             new OA\Response(
                 response: 200,
                 description: 'Every sultan, in order of reign.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 200),
-                    new OA\Property(property: 'status', type: 'string', example: 'OK'),
-                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: '#/components/schemas/MamlukSultan')),
-                ]),
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/MamlukSultan')),
             ),
         ],
     )]
@@ -56,13 +54,9 @@ final class Sultans extends Controllers\Base
             new OA\Response(
                 response: 200,
                 description: 'The sultan.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 200),
-                    new OA\Property(property: 'status', type: 'string', example: 'OK'),
-                    new OA\Property(property: 'data', ref: '#/components/schemas/MamlukSultan'),
-                ]),
+                content: new OA\JsonContent(ref: '#/components/schemas/MamlukSultan'),
             ),
-            new OA\Response(response: 404, ref: '#/components/responses/NotFound'),
+            new OA\Response(response: 404, description: 'No sultan has that ID.'),
         ],
     )]
     public function get(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

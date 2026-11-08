@@ -7,9 +7,11 @@ namespace Kipchak\Cli\Console;
 use JsonException;
 use Kipchak\Cli\Project\ChangeSetWriter;
 use Kipchak\Cli\Project\ConflictException;
+use Kipchak\Cli\Project\Inspector;
 use Kipchak\Cli\Project\ProjectException;
 use Kipchak\Cli\Project\ProjectReader;
 use Kipchak\Cli\Scaffold\ChangeSet;
+use Kipchak\Cli\Scaffold\Make\ResponseStyle;
 use Kipchak\Cli\Scaffold\Project;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -49,6 +51,19 @@ abstract class Command extends SymfonyCommand
     protected function project(InputInterface $input, array $files = []): Project
     {
         return new ProjectReader()->read($this->projectRoot($input), $files);
+    }
+
+    /**
+     * How the operations a make: command writes describe their responses, read from the document the project
+     * generates. A project that cannot be inspected gets the long form, which is correct whatever its generator does.
+     */
+    protected function responseStyle(InputInterface $input, Inspector $inspector): ResponseStyle
+    {
+        try {
+            return ResponseStyle::fromInspection($inspector->inspect($this->projectRoot($input), routes: false));
+        } catch (ProjectException) {
+            return ResponseStyle::longForm();
+        }
     }
 
     /**

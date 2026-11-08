@@ -38,7 +38,8 @@ final class OpenApiValidateCommand extends Command
             . "  KIP-002  error    every path parameter of a route is declared on its operation\n"
             . "  KIP-003  error    every operation has a unique operationId, a summary and a tag\n"
             . "  KIP-004  warning  bodies refer to component schemas, apart from the response envelope\n"
-            . "  KIP-005  warning  every component schema property has a description and an example\n\n"
+            . "  KIP-005  warning  every component schema property has a description and an example\n"
+            . "  KIP-006  warning  JSON successes are documented in the response envelope, {code, status, data}\n\n"
             . "The route that serves the document (/openapi.json) is not expected in it. Exit codes: 0 no error, 1 an error\n"
             . "(or a warning, with --strict), 2 the document or the routes could not be produced."
         );

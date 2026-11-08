@@ -13,7 +13,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 /**
  * The validation fixture set (SR-2026-012, objective 4): the starter, and one project per check, each the starter
  * with one defect in its source. openapi:validate reports the check and exits with 1 on each, and with 0 on the
- * starter. Warnings (KIP-004, KIP-005) fail with --strict.
+ * starter. Warnings (KIP-004, KIP-005, KIP-006) fail with --strict.
  *
  * The projects need the starter's dependencies installed, so the test runs when KIPCHAK_STARTER_DIR names a
  * kipchak/starter checkout with vendor/ (composer install). It copies it once and makes each defect in turn.
@@ -88,12 +88,14 @@ final class OpenApiValidateFixtureTest extends TestCase
         return [
             'OAS-001' => ['OAS-001', self::CONTROLLER, "schema: new OA\\Schema(type: 'integer', example: 4)),", "schema: new OA\\Schema(type: 'integer', example: 4), style: 'form'),"],
             'OAS-002' => ['OAS-002', self::CONTROLLER, "                response: 200,\n                description: 'Every sultan, in order of reign.',", "                description: 'Every sultan, in order of reign.',"],
-            'OAS-003' => ['OAS-003', self::CONTROLLER, "'#/components/responses/NotFound'", "'#/components/responses/Missing'"],
+            'OAS-003' => ['OAS-003', self::CONTROLLER, "JsonContent(ref: '#/components/schemas/MamlukSultan')", "JsonContent(ref: '#/components/schemas/Missing')"],
             'KIP-001' => ['KIP-001', 'routes/v1/unlisted.php', '', "<?php\n\n\$app->get('/v1/unlisted', fn (\$request, \$response) => \$response);\n"],
             'KIP-002' => ['KIP-002', self::CONTROLLER, "        parameters: [\n            new OA\\Parameter(name: 'id', in: 'path', required: true, schema: new OA\\Schema(type: 'integer', example: 4)),\n        ],\n", ''],
             'KIP-003' => ['KIP-003', self::CONTROLLER, "        summary: 'List the sultans',\n", ''],
             'KIP-004' => ['KIP-004', self::CONTROLLER, "items: new OA\\Items(ref: '#/components/schemas/MamlukSultan')", "items: new OA\\Items(properties: [new OA\\Property(property: 'name', type: 'string')])"],
             'KIP-005' => ['KIP-005', self::DTO, "#[OA\\Property(description: 'Name by which the sultan is known.', example: 'Baybars')]", "#[OA\\Property(example: 'Baybars')]"],
+            // The generator no longer registers Envelope, so the data-only successes misstate what the API sends.
+            'KIP-006' => ['KIP-006', 'api/Utils/OpenApi.php', "\n            ->withProcessorPipeline(fn (Pipeline \$pipeline) => \$pipeline->add(new Envelope(errors: true)))", ''],
         ];
     }
 
@@ -113,7 +115,7 @@ final class OpenApiValidateFixtureTest extends TestCase
         }
 
         try {
-            [$code, $result] = $this->validate(strict: in_array($check, ['KIP-004', 'KIP-005'], true));
+            [$code, $result] = $this->validate(strict: in_array($check, ['KIP-004', 'KIP-005', 'KIP-006'], true));
         } finally {
             $original === null ? unlink($path) : file_put_contents($path, $original);
         }

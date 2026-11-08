@@ -9,11 +9,7 @@
             new OA\Response(
                 response: 201,
                 description: 'The {{singularWords}}, as created.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 201),
-                    new OA\Property(property: 'status', type: 'string', example: 'CREATED'),
-                    new OA\Property(property: 'data', ref: '#/components/schemas/{{dto}}'),
-                ]),
+{{createdContent}}
             ),
             new OA\Response(response: 400, description: 'The body is not valid JSON or does not match the {{dto}} schema.'),
         ],
@@ -42,14 +38,10 @@
             new OA\Response(
                 response: 200,
                 description: 'The {{singularWords}}, as replaced.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 200),
-                    new OA\Property(property: 'status', type: 'string', example: 'OK'),
-                    new OA\Property(property: 'data', ref: '#/components/schemas/{{dto}}'),
-                ]),
+{{itemContent}}
             ),
             new OA\Response(response: 400, description: 'The body is not valid JSON or does not match the {{dto}} schema.'),
-            new OA\Response(response: 404, ref: '#/components/responses/NotFound'),
+{{notFound}}
         ],
     )]
     public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -76,7 +68,7 @@
         ],
         responses: [
             new OA\Response(response: 204, description: 'The {{singularWords}} was deleted.'),
-            new OA\Response(response: 404, ref: '#/components/responses/NotFound'),
+{{notFound}}
         ],
     )]
     public function delete(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

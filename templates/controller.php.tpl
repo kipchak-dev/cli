@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * Controllers are thin: they read the request, call a model and return a response. Each operation's attributes
  * describe it in the OpenAPI document served at /openapi.json, and refer to DTO schemas rather than defining them.
- *
+{{envelopeNote}} *
  * Every controller extending Controllers\Base has the DI container in $this->container and the Logger driver's
  * logger in $this->logger.
  */
@@ -31,11 +31,7 @@ final class {{controller}} extends Controllers\Base
             new OA\Response(
                 response: 200,
                 description: 'Every {{singularWords}}.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 200),
-                    new OA\Property(property: 'status', type: 'string', example: 'OK'),
-                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(ref: '#/components/schemas/{{dto}}')),
-                ]),
+{{listContent}}
             ),
         ],
     )]
@@ -56,13 +52,9 @@ final class {{controller}} extends Controllers\Base
             new OA\Response(
                 response: 200,
                 description: 'The {{singularWords}}.',
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: 'code', type: 'integer', example: 200),
-                    new OA\Property(property: 'status', type: 'string', example: 'OK'),
-                    new OA\Property(property: 'data', ref: '#/components/schemas/{{dto}}'),
-                ]),
+{{itemContent}}
             ),
-            new OA\Response(response: 404, ref: '#/components/responses/NotFound'),
+{{notFound}}
         ],
     )]
     public function get(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
