@@ -308,7 +308,7 @@ final class MakeGenerators
         $apiTestCase = $project->file('tests/ApiTestCase.php');
         if ($resource !== null && $resource->crud && $apiTestCase !== null && !str_contains($apiTestCase, 'function app(')) {
             $messages[] = "tests/{$resource->controller}Test.php uses ApiTestCase::app(), which starter 4.1 added: copy it "
-                . 'from https://1x.ax/mamluk/kipchak/starter/~files/master/tests/ApiTestCase.php.';
+                . 'from https://github.com/kipchak-dev/starter/blob/master/tests/ApiTestCase.php.';
         }
 
         return $messages;
