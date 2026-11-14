@@ -21,7 +21,7 @@ return [
         'enabled' => true,
         'entity_managers' => [
             'primary' => [
-                'dev_mode' => (bool) env('DEBUG', false),
+                'dev_mode' => filter_var(env('DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN), // On only for DEBUG=true, 1, on or yes
                 'metadata_dirs' => [
                     dirname(__DIR__) . '/api/Entities/Doctrine/Primary',
                 ],

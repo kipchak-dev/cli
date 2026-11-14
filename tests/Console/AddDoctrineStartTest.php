@@ -78,6 +78,40 @@ final class AddDoctrineStartTest extends TestCase
         self::assertFileExists($connection['path']);
     }
 
+    /**
+     * @return array<string, array{?string, bool}>
+     */
+    public static function debugValues(): array
+    {
+        return [
+            'unset' => [null, false],
+            'empty' => ['', false],
+            'false' => ['false', false],
+            '0' => ['0', false],
+            'off' => ['off', false],
+            'a non-boolean value' => ['verbose', false],
+            'true' => ['true', true],
+            '1' => ['1', true],
+            'yes' => ['yes', true],
+            'on' => ['on', true],
+        ];
+    }
+
+    /**
+     * dev_mode replaces the configured metadata cache with an in-memory one in each worker, so the written configuration
+     * turns it on only when DEBUG asks for it, with core's env() as it is from 3.21 and as it was before.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('debugValues')]
+    public function testDevModeIsOnOnlyWhenDebugAsksForIt(?string $debug, bool $devMode): void
+    {
+        $this->add('doctrine');
+
+        foreach (['3.21' => true, '3.20' => false] as $core => $zeroIsAValue) {
+            $config = $this->writtenConfigWithDebug($debug, $zeroIsAValue);
+            self::assertSame($devMode, $config['orm']['entity_managers']['primary']['dev_mode'], "core {$core}");
+        }
+    }
+
     public function testConfigurationAndOutputSaySqliteIsOnlyTheStartingDefault(): void
     {
         $output = $this->add('doctrine');
@@ -159,6 +193,25 @@ final class AddDoctrineStartTest extends TestCase
         $code = 'namespace Kipchak\Core { function env($name, $default = null) { return $default; } } '
             . 'namespace { echo json_encode(require $argv[1]); }';
         $output = shell_exec(implode(' ', array_map(escapeshellarg(...), [PHP_BINARY, '-r', $code, $this->root . '/config/kipchak.doctrine.php'])));
+
+        return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The written configuration, loaded in its own process with DEBUG set (or unset) and an env() that reads the
+     * environment as kipchak/core does: from 3.21 an unset or empty variable gives the default; before 3.21 so did "0".
+     *
+     * @return array<string, mixed>
+     */
+    private function writtenConfigWithDebug(?string $debug, bool $zeroIsAValue): array
+    {
+        $absent = $zeroIsAValue ? '$value === false || $value === ""' : '!$value';
+        $code = 'namespace Kipchak\Core { function env($name, $default = null) { $value = getenv($name); '
+            . 'return (' . $absent . ') ? $default : $value; } } '
+            . 'namespace { echo json_encode(require $argv[1]); }';
+        $command = array_map(escapeshellarg(...), [PHP_BINARY, '-r', $code, $this->root . '/config/kipchak.doctrine.php']);
+        $environment = $debug === null ? 'env -u DEBUG ' : 'env DEBUG=' . escapeshellarg($debug) . ' ';
+        $output = shell_exec($environment . implode(' ', $command));
 
         return json_decode((string) $output, true, flags: JSON_THROW_ON_ERROR);
     }
