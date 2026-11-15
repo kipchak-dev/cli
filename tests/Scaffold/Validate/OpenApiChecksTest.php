@@ -7,6 +7,7 @@ namespace Kipchak\Cli\Tests\Scaffold\Validate;
 use Kipchak\Cli\Scaffold\Validate\Finding;
 use Kipchak\Cli\Scaffold\Validate\Inspection;
 use Kipchak\Cli\Scaffold\Validate\OpenApiChecks;
+use Kipchak\Cli\Scaffold\Validate\Severity;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -201,6 +202,73 @@ final class OpenApiChecksTest extends TestCase
 
         self::assertContains('KIP-001 GET /internal/health', self::summary(self::check($inspection, [])));
         self::assertNotContains('KIP-001 GET /internal/health', self::summary(self::check($inspection, ['GET  /internal/health'])));
+    }
+
+    /**
+     * @return array<string, mixed> the starter with an MCP endpoint routed for every method, as kipchak/driver-mcp's
+     *     route is, and the declarations the inspection script found
+     */
+    private static function withMcpRoute(array $protocolEndpoints): array
+    {
+        $inspection = self::starter();
+        $inspection['routes'][] = [
+            'methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            'pattern' => '/mcp',
+            'handler' => 'Kipchak\\Driver\\Mcp\\Endpoint',
+            'name' => null,
+        ];
+        $inspection['protocolEndpoints'] = $protocolEndpoints;
+
+        return $inspection;
+    }
+
+    public function testADeclaredProtocolEndpointIsListedAsANoticeNotAnError(): void
+    {
+        $findings = self::check(self::withMcpRoute([
+            ['package' => 'kipchak/driver-mcp', 'class' => 'Kipchak\\Driver\\Mcp\\Endpoint', 'problem' => null],
+        ]));
+
+        self::assertSame([], array_values(array_filter($findings, static fn (Finding $f): bool => $f->severity !== Severity::Notice)));
+        self::assertCount(6, $findings, 'One notice per method, so every skipped route is named');
+        self::assertSame('KIP-001', $findings[0]->check);
+        self::assertSame('GET /mcp', $findings[0]->location);
+        self::assertStringContainsString('protocol endpoint of kipchak/driver-mcp (Kipchak\\Driver\\Mcp\\Endpoint)', $findings[0]->message);
+    }
+
+    public function testWithoutTheDeclarationTheRouteIsAnError(): void
+    {
+        $summary = self::summary(self::check(self::withMcpRoute([])));
+
+        self::assertContains('KIP-001 POST /mcp', $summary);
+        self::assertCount(6, $summary);
+    }
+
+    public function testOnlyTheExactHandlerClassIsSkipped(): void
+    {
+        $inspection = self::withMcpRoute([
+            ['package' => 'kipchak/driver-mcp', 'class' => 'Kipchak\\Driver\\Mcp\\Endpoint', 'problem' => null],
+        ]);
+        // A subclass, or a method of the class, is another handler.
+        $inspection['routes'][] = ['methods' => ['POST'], 'pattern' => '/mcp-admin', 'handler' => 'Api\\Mcp\\AdminEndpoint', 'name' => null];
+        $inspection['routes'][] = ['methods' => ['POST'], 'pattern' => '/mcp-method', 'handler' => 'Kipchak\\Driver\\Mcp\\Endpoint::handle', 'name' => null];
+
+        $errors = self::summary(array_values(array_filter(self::check($inspection), static fn (Finding $f): bool => $f->severity === Severity::Error)));
+
+        self::assertSame(['KIP-001 POST /mcp-admin', 'KIP-001 POST /mcp-method'], $errors);
+    }
+
+    /**
+     * A7: a declaration the inspection script found a problem with (outside the package's own namespace, an interface,
+     * abstract, not loadable, a wildcard) is an error naming the package, and skips nothing.
+     */
+    public function testADeclarationWithAProblemIsAnErrorAndSkipsNothing(): void
+    {
+        $summary = self::summary(self::check(self::withMcpRoute([
+            ['package' => 'kipchak/driver-other', 'class' => 'Kipchak\\Driver\\Mcp\\Endpoint', 'problem' => 'is outside the package\'s own namespace (Kipchak\\Driver\\Other\\)'],
+        ])));
+
+        self::assertContains('KIP-007 kipchak/driver-other', $summary);
+        self::assertContains('KIP-001 POST /mcp', $summary, 'The route is still checked');
     }
 
     public function testWithoutRoutesTheRouteChecksDoNotRun(): void

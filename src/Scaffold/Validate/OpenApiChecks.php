@@ -53,7 +53,7 @@ final class OpenApiChecks
         array_push(
             $findings,
             ...$this->references($document),
-            ...($inspection->routes === null ? [] : $this->routes($document, $inspection->routes, $ignoredRoutes)),
+            ...($inspection->routes === null ? [] : $this->routes($document, $inspection->routes, $ignoredRoutes, $inspection->protocolEndpoints)),
             ...$this->operationFields($document),
             ...$this->inlineBodies($document),
             ...$this->schemaProperties($document),
@@ -143,17 +143,30 @@ final class OpenApiChecks
      * @param array<string, mixed> $document
      * @param list<array{methods: list<string>, pattern: string, handler: string, name: ?string}> $routes
      * @param list<string> $ignoredRoutes
+     * @param list<array{package: string, class: string, problem: ?string}> $protocolEndpoints
      * @return list<Finding>
      */
-    private function routes(array $document, array $routes, array $ignoredRoutes): array
+    private function routes(array $document, array $routes, array $ignoredRoutes, array $protocolEndpoints = []): array
     {
+        // A route whose handler is exactly a class an installed package declares as a protocol endpoint is not expected
+        // in the document. It is reported as a notice, so nothing is skipped silently. A declaration with a problem
+        // (outside its package's namespace, not a concrete class, not loadable) is an error and skips nothing.
+        $endpoints = [];
+        $findings = [];
+        foreach ($protocolEndpoints as $endpoint) {
+            if ($endpoint['problem'] !== null) {
+                $findings[] = new Finding('KIP-007', Severity::Error, $endpoint['package'], "The protocol endpoint {$endpoint['class']} that {$endpoint['package']} declares {$endpoint['problem']}, so no route is skipped for it.");
+                continue;
+            }
+            $endpoints[$endpoint['class']] = $endpoint['package'];
+        }
+
         $operations = [];
         foreach ($this->operations($document) as [$method, $path, $operation, $pathItem]) {
             $operations[strtoupper($method) . ' ' . $path] = [$operation, $pathItem];
         }
         $ignored = array_map(static fn (string $route): string => (string) preg_replace('/\s+/', ' ', trim($route)), $ignoredRoutes);
 
-        $findings = [];
         $routed = [];
         foreach ($routes as $route) {
             if (preg_match(self::DOCUMENT_ROUTE, $route['pattern']) === 1) {
@@ -170,6 +183,10 @@ final class OpenApiChecks
                         continue;
                     }
                     $routed[$key] = true;
+                    if (isset($endpoints[$route['handler']])) {
+                        $findings[] = new Finding('KIP-001', Severity::Notice, $key, "Not checked: a protocol endpoint of {$endpoints[$route['handler']]} ({$route['handler']}), not a REST operation.");
+                        continue;
+                    }
                     if (!isset($operations[$key])) {
                         $handler = $route['handler'] === '' ? '' : " ({$route['handler']})";
                         $findings[] = new Finding('KIP-001', Severity::Error, $key, "The route{$handler} has no operation in the document.");

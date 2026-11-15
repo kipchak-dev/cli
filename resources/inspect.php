@@ -101,6 +101,45 @@ try {
                 'name' => $route->getName(),
             ];
         }
+
+        // Protocol endpoints: route handlers that an installed Kipchak package declares, under
+        // extra.kipchak.protocol-endpoints, as serving a protocol rather than REST operations (for example
+        // kipchak/driver-mcp's endpoint). Each declaration is checked here, with the project's autoloader: the class
+        // must be in the declaring package's own PSR-4 namespace and be a concrete class. A declaration that is not is
+        // reported with its problem, and openapi:validate treats it as an error, never as a reason to skip a route.
+        $result['protocolEndpoints'] = [];
+        $installed = is_file('vendor/composer/installed.json')
+            ? json_decode((string) file_get_contents('vendor/composer/installed.json'), true)
+            : null;
+        foreach (is_array($installed) ? ($installed['packages'] ?? $installed) : [] as $package) {
+            $name = (string) ($package['name'] ?? '');
+            $declared = $package['extra']['kipchak']['protocol-endpoints'] ?? null;
+            if (!str_starts_with($name, 'kipchak/') || $declared === null) {
+                continue;
+            }
+            $namespaces = array_keys((array) ($package['autoload']['psr-4'] ?? []));
+            foreach (is_array($declared) ? $declared : [$declared] as $class) {
+                $problem = null;
+                if (!is_string($class) || $class === '') {
+                    $problem = 'is not a class name';
+                } elseif (str_contains($class, '*')) {
+                    $problem = 'is a wildcard; name the exact handler class';
+                } else {
+                    $class = ltrim($class, '\\');
+                    $inNamespace = array_filter($namespaces, static fn (string $prefix): bool => $prefix !== '' && str_starts_with($class, $prefix));
+                    if ($inNamespace === []) {
+                        $problem = 'is outside the package\'s own namespace (' . ($namespaces === [] ? 'it declares none' : implode(', ', $namespaces)) . ')';
+                    } elseif (interface_exists($class) || trait_exists($class)) {
+                        $problem = 'is an interface or a trait; name the concrete handler class';
+                    } elseif (!class_exists($class)) {
+                        $problem = 'cannot be loaded';
+                    } elseif ((new ReflectionClass($class))->isAbstract() || (new ReflectionClass($class))->isEnum()) {
+                        $problem = 'is not a concrete class; name the handler class itself';
+                    }
+                }
+                $result['protocolEndpoints'][] = ['package' => $name, 'class' => is_string($class) ? $class : json_encode($class), 'problem' => $problem];
+            }
+        }
     }
 } catch (Throwable $exception) {
     $finish(['error' => $exception::class . ': ' . $exception->getMessage() . ' in ' . $exception->getFile() . ':' . $exception->getLine()], 2);

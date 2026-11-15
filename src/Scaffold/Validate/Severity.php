@@ -8,4 +8,6 @@ enum Severity: string
 {
     case Error = 'error';
     case Warning = 'warning';
+    /** Not a defect: something the check did deliberately, reported so that nothing is skipped silently. */
+    case Notice = 'notice';
 }

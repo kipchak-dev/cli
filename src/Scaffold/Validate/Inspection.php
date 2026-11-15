@@ -22,6 +22,8 @@ final readonly class Inspection
      * @param ?string $pipeline what generated the document: "project" for the project's Api\Utils\OpenApi::generate(),
      *     "fallback" for the inspection script's own generator, null when not known
      * @param bool $envelopeAvailable whether the project's kipchak/core has the Envelope processor
+     * @param list<array{package: string, class: string, problem: ?string}> $protocolEndpoints handler classes that installed
+     *     Kipchak packages declare as protocol endpoints, each with the problem found in the declaration, if any
      */
     public function __construct(
         public ?object $document,
@@ -29,6 +31,7 @@ final readonly class Inspection
         public ?array $routes = null,
         public ?string $pipeline = null,
         public bool $envelopeAvailable = false,
+        public array $protocolEndpoints = [],
     ) {}
 
     /**
@@ -67,6 +70,11 @@ final readonly class Inspection
             $routes,
             isset($data->pipeline) ? (string) $data->pipeline : null,
             (bool) ($data->envelopeAvailable ?? false),
+            array_values(array_map(static fn (object $e): array => [
+                'package' => (string) ($e->package ?? ''),
+                'class' => (string) ($e->class ?? ''),
+                'problem' => isset($e->problem) ? (string) $e->problem : null,
+            ], (array) ($data->protocolEndpoints ?? []))),
         );
     }
 

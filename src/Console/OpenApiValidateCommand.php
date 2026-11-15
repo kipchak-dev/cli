@@ -39,7 +39,11 @@ final class OpenApiValidateCommand extends Command
             . "  KIP-003  error    every operation has a unique operationId, a summary and a tag\n"
             . "  KIP-004  warning  bodies refer to component schemas, apart from the envelope (code, status, meta, data)\n"
             . "  KIP-005  warning  every component schema property has a description and an example\n"
-            . "  KIP-006  warning  JSON successes are documented in the response envelope, {code, status, data}\n\n"
+            . "  KIP-006  warning  JSON successes are documented in the response envelope, {code, status, data}\n"
+            . "  KIP-007  error    a protocol endpoint a package declares is in that package's own namespace and is a concrete class\n\n"
+            . "A route whose handler is a class an installed Kipchak package declares in extra.kipchak.protocol-endpoints\n"
+            . "(such as kipchak/driver-mcp's MCP endpoint) serves a protocol, not REST operations: it is not expected in the\n"
+            . "document, and is listed as a NOTICE so that nothing is skipped silently.\n"
             . "The route that serves the document (/openapi.json) is not expected in it. Exit codes: 0 no error, 1 an error\n"
             . "(or a warning, with --strict), 2 the document or the routes could not be produced."
         );
@@ -53,7 +57,8 @@ final class OpenApiValidateCommand extends Command
             $findings = new OpenApiChecks()->check($inspection, array_values(array_map('strval', (array) $input->getOption('ignore-route'))));
 
             $errors = count(array_filter($findings, static fn (Finding $f): bool => $f->severity === Severity::Error));
-            $warnings = count($findings) - $errors;
+            $warnings = count(array_filter($findings, static fn (Finding $f): bool => $f->severity === Severity::Warning));
+            $notices = count($findings) - $errors - $warnings;
             $failed = $errors > 0 || ($input->getOption('strict') && $warnings > 0);
 
             if ($this->isJson($input)) {
@@ -61,11 +66,16 @@ final class OpenApiValidateCommand extends Command
                     'valid' => !$failed,
                     'errors' => $errors,
                     'warnings' => $warnings,
+                    'notices' => $notices,
                     'findings' => array_map(static fn (Finding $f): array => $f->toArray(), $findings),
                 ]);
             } else {
                 foreach ($findings as $finding) {
-                    $tag = $finding->severity === Severity::Error ? 'error' : 'comment';
+                    $tag = match ($finding->severity) {
+                        Severity::Error => 'error',
+                        Severity::Warning => 'comment',
+                        Severity::Notice => 'info',
+                    };
                     $output->writeln(sprintf('<%s>%s %s</%s> %s: %s', $tag, $finding->check, strtoupper($finding->severity->value), $tag, $finding->location, $finding->message));
                 }
                 $summary = sprintf('%d %s, %d %s.', $errors, $errors === 1 ? 'error' : 'errors', $warnings, $warnings === 1 ? 'warning' : 'warnings');
