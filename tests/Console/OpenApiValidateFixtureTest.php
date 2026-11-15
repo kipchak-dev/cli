@@ -93,7 +93,7 @@ final class OpenApiValidateFixtureTest extends TestCase
             'KIP-002' => ['KIP-002', self::CONTROLLER, "        parameters: [\n            new OA\\Parameter(name: 'id', in: 'path', required: true, schema: new OA\\Schema(type: 'integer', example: 4)),\n        ],\n", ''],
             'KIP-003' => ['KIP-003', self::CONTROLLER, "        summary: 'List the sultans',\n", ''],
             'KIP-004' => ['KIP-004', self::CONTROLLER, "items: new OA\\Items(ref: '#/components/schemas/MamlukSultan')", "items: new OA\\Items(properties: [new OA\\Property(property: 'name', type: 'string')])"],
-            'KIP-005' => ['KIP-005', self::DTO, "#[OA\\Property(description: 'Name by which the sultan is known.', example: 'Baybars')]", "#[OA\\Property(example: 'Baybars')]"],
+            'KIP-005' => ['KIP-005', self::DTO, "#[Field(description: 'Name by which the sultan is known.', maxLength: 100, minLength: 1, example: 'Baybars')]", "#[Field(maxLength: 100, minLength: 1, example: 'Baybars')]"],
             // The generator no longer registers Envelope, so the data-only successes misstate what the API sends.
             'KIP-006' => ['KIP-006', 'api/Utils/OpenApi.php', "\n            ->withProcessorPipeline(fn (Pipeline \$pipeline) => \$pipeline->add(new Envelope(errors: true)))", ''],
         ];
