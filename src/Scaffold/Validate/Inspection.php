@@ -17,13 +17,19 @@ final readonly class Inspection
     /**
      * @param ?object $document the document as decoded JSON objects, so that {} and [] stay distinct
      * @param list<string> $warnings
-     * @param ?list<array{methods: list<string>, pattern: string, handler: string, name: ?string}> $routes null when
+     * @param ?list<array{methods: list<string>, pattern: string, handler: string, name: ?string, app?: string}> $routes null when
      *     routes were not read
      * @param ?string $pipeline what generated the document: "project" for the project's Api\Utils\OpenApi::generate(),
      *     "fallback" for the inspection script's own generator, null when not known
      * @param bool $envelopeAvailable whether the project's kipchak/core has the Envelope processor
      * @param list<array{package: string, class: string, problem: ?string}> $protocolEndpoints handler classes that installed
      *     Kipchak packages declare as protocol endpoints, each with the problem found in the declaration, if any
+     * @param list<mixed> $apps the project's other apps, as its composer.json declares them under extra.kipchak.apps
+     *     (each should be a Class::method string)
+     * @param list<array{app: string, problem: string}> $appProblems declared apps whose routes could not be read, each
+     *     with the reason (KIP-008)
+     *
+     * Each route may also carry "app": "main" for Kipchak\Core\Api::boot(), or the declared Class::method it came from.
      */
     public function __construct(
         public ?object $document,
@@ -32,7 +38,38 @@ final readonly class Inspection
         public ?string $pipeline = null,
         public bool $envelopeAvailable = false,
         public array $protocolEndpoints = [],
+        public array $apps = [],
+        public array $appProblems = [],
     ) {}
+
+    /**
+     * This inspection with each declared app's routes added after the main app's, and the problems of the apps that
+     * could not be read. Every route then carries the app it came from.
+     *
+     * @param array<string, list<array{methods: list<string>, pattern: string, handler: string, name: ?string}>> $appRoutes
+     *     the routes of each app that was read, by its declared name
+     * @param list<array{app: string, problem: string}> $appProblems
+     */
+    public function withApps(array $appRoutes, array $appProblems): self
+    {
+        $routes = array_map(static fn (array $route): array => [...$route, 'app' => 'main'], $this->routes ?? []);
+        foreach ($appRoutes as $app => $list) {
+            foreach ($list as $route) {
+                $routes[] = [...$route, 'app' => (string) $app];
+            }
+        }
+
+        return new self($this->document, $this->warnings, $routes, $this->pipeline, $this->envelopeAvailable,
+            $this->protocolEndpoints, $this->apps, $appProblems);
+    }
+
+    /**
+     * Whether routes were read from more than one app.
+     */
+    public function hasSeveralApps(): bool
+    {
+        return $this->apps !== [];
+    }
 
     /**
      * From the inspection script's output.
@@ -75,6 +112,7 @@ final readonly class Inspection
                 'class' => (string) ($e->class ?? ''),
                 'problem' => isset($e->problem) ? (string) $e->problem : null,
             ], (array) ($data->protocolEndpoints ?? []))),
+            isset($data->apps) && is_array($data->apps) ? array_values($data->apps) : [],
         );
     }
 

@@ -53,6 +53,7 @@ final class OpenApiChecks
         array_push(
             $findings,
             ...$this->references($document),
+            ...($inspection->routes === null ? [] : $this->apps($inspection->appProblems)),
             ...($inspection->routes === null ? [] : $this->routes($document, $inspection->routes, $ignoredRoutes, $inspection->protocolEndpoints)),
             ...$this->operationFields($document),
             ...$this->inlineBodies($document),
@@ -137,11 +138,24 @@ final class OpenApiChecks
     }
 
     /**
-     * KIP-001: every route has an operation and every operation a route. KIP-002: every path parameter of a route is
-     * declared on its operation.
+     * KIP-008: every app the project declares under extra.kipchak.apps was booted and its routes read. A declared app
+     * that could not be is an error naming the entry, never a silent skip.
+     *
+     * @param list<array{app: string, problem: string}> $problems
+     * @return list<Finding>
+     */
+    private function apps(array $problems): array
+    {
+        return array_map(static fn (array $p): Finding => new Finding('KIP-008', Severity::Error, $p['app'],
+            "The app declared in extra.kipchak.apps {$p['problem']}, so its routes were not read."), $problems);
+    }
+
+    /**
+     * KIP-001: every route of every app has an operation and every operation a route in at least one app. KIP-002:
+     * every path parameter of a route is declared on its operation. KIP-009: no route is served by two apps.
      *
      * @param array<string, mixed> $document
-     * @param list<array{methods: list<string>, pattern: string, handler: string, name: ?string}> $routes
+     * @param list<array{methods: list<string>, pattern: string, handler: string, name: ?string, app?: string}> $routes
      * @param list<string> $ignoredRoutes
      * @param list<array{package: string, class: string, problem: ?string}> $protocolEndpoints
      * @return list<Finding>
@@ -168,10 +182,14 @@ final class OpenApiChecks
         $ignored = array_map(static fn (string $route): string => (string) preg_replace('/\s+/', ' ', trim($route)), $ignoredRoutes);
 
         $routed = [];
+        $servedBy = [];
         foreach ($routes as $route) {
             if (preg_match(self::DOCUMENT_ROUTE, $route['pattern']) === 1) {
                 continue;
             }
+            // The main app's findings read as they always have; a declared app's name its app.
+            $app = $route['app'] ?? 'main';
+            $of = $app === 'main' ? '' : " of the app {$app}";
             foreach ($route['methods'] as $method) {
                 $method = strtoupper($method);
                 if (in_array("{$method} {$route['pattern']}", $ignored, true)) {
@@ -183,13 +201,14 @@ final class OpenApiChecks
                         continue;
                     }
                     $routed[$key] = true;
+                    $servedBy[$key][$app] = true;
                     if (isset($endpoints[$route['handler']])) {
-                        $findings[] = new Finding('KIP-001', Severity::Notice, $key, "Not checked: a protocol endpoint of {$endpoints[$route['handler']]} ({$route['handler']}), not a REST operation.");
+                        $findings[] = new Finding('KIP-001', Severity::Notice, $key, "Not checked: a protocol endpoint of {$endpoints[$route['handler']]} ({$route['handler']}){$of}, not a REST operation.");
                         continue;
                     }
                     if (!isset($operations[$key])) {
                         $handler = $route['handler'] === '' ? '' : " ({$route['handler']})";
-                        $findings[] = new Finding('KIP-001', Severity::Error, $key, "The route{$handler} has no operation in the document.");
+                        $findings[] = new Finding('KIP-001', Severity::Error, $key, "The route{$handler}{$of} has no operation in the document.");
                         continue;
                     }
 
@@ -207,6 +226,13 @@ final class OpenApiChecks
         foreach (array_keys($operations) as $key) {
             if (!isset($routed[$key]) && !in_array($key, $ignored, true)) {
                 $findings[] = new Finding('KIP-001', Severity::Error, $key, 'The operation has no route, so the API answers it with 404.');
+            }
+        }
+
+        foreach ($servedBy as $key => $apps) {
+            if (count($apps) > 1) {
+                $findings[] = new Finding('KIP-009', Severity::Warning, (string) $key, 'The route is served by more than one app (' . implode(', ', array_keys($apps))
+                    . '). A request reaches only the app its worker runs, so one of them is usually a mistake.');
             }
         }
 

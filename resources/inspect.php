@@ -5,12 +5,18 @@
  * so that the project's versions of swagger-php, Slim and its drivers are used (SR-2026-012 §3.3.5):
  *
  *     php inspect.php <project root> [--no-document] [--no-routes]
+ *     php inspect.php <project root> --app=<Class::method>
  *
  * Writes one JSON object to standard output: the OpenAPI document and the warnings swagger-php logged while
  * generating it, which pipeline generated it ("project" for Api\Utils\OpenApi::generate(), "fallback" for this
  * script's own) and whether the installed kipchak/core has the Envelope processor, and the routes the application
- * registers. Anything the project prints while booting goes to
+ * registers. When the project's composer.json declares other apps under extra.kipchak.apps, they are listed in
+ * "apps"; this process does not boot them. Anything the project prints while booting goes to
  * standard error instead. Exits with 2 when either part cannot be produced, with the reason in "error".
+ *
+ * With --app, it boots only that declared app, by calling the named public static method, and writes the routes it
+ * registers, or the reason it could not, in "error". kipchak/cli runs one such process per declared app, so that one
+ * app's configuration, container or globals cannot affect another's routes.
  *
  * This file uses nothing from kipchak/cli, whose classes are not loaded here.
  */
@@ -20,6 +26,8 @@ declare(strict_types=1);
 $root = $argv[1] ?? '';
 $withDocument = !in_array('--no-document', $argv, true);
 $withRoutes = !in_array('--no-routes', $argv, true);
+$appOption = array_values(array_filter($argv, static fn (string $argument): bool => str_starts_with($argument, '--app=')));
+$declaredApp = $appOption === [] ? null : substr($appOption[0], strlen('--app='));
 
 $finish = static function (array $result, int $code): never {
     $printed = '';
@@ -40,6 +48,65 @@ if (!is_file($root . '/vendor/autoload.php')) {
 chdir($root);
 ob_start();
 require $root . '/vendor/autoload.php';
+
+/**
+ * The routes an app's route collector holds.
+ *
+ * @return list<array{methods: list<string>, pattern: string, handler: string, name: ?string}>
+ */
+$routesOf = static function (object $app): array {
+    $routes = [];
+    foreach ($app->getRouteCollector()->getRoutes() as $route) {
+        $callable = $route->getCallable();
+        $handler = match (true) {
+            is_array($callable) && count($callable) === 2 => (is_object($callable[0]) ? $callable[0]::class : (string) $callable[0]) . '::' . $callable[1],
+            is_string($callable) => $callable,
+            $callable instanceof Closure => 'Closure',
+            is_object($callable) => $callable::class,
+            default => '',
+        };
+        $routes[] = [
+            'methods' => array_values($route->getMethods()),
+            'pattern' => $route->getPattern(),
+            'handler' => $handler,
+            'name' => $route->getName(),
+        ];
+    }
+
+    return $routes;
+};
+
+if ($declaredApp !== null) {
+    // One declared app: it must name a public static method that needs no argument and returns a Slim\App. Each
+    // problem is reported in "error", with exit code 2, and kipchak/cli reports it as KIP-008 for this entry.
+    try {
+        if (!preg_match('/^\\\\?([A-Za-z_\x80-\xff][\w\x80-\xff]*(?:\\\\[A-Za-z_\x80-\xff][\w\x80-\xff]*)*)::([A-Za-z_\x80-\xff][\w\x80-\xff]*)$/', $declaredApp, $parts)) {
+            $finish(['error' => 'is not a Class::method name'], 2);
+        }
+        [, $class, $method] = $parts;
+        if (!class_exists($class)) {
+            $finish(['error' => "names the class {$class}, which cannot be loaded"], 2);
+        }
+        $reflection = new ReflectionClass($class);
+        if (!$reflection->hasMethod($method)) {
+            $finish(['error' => "names the method {$method}, which {$class} does not have"], 2);
+        }
+        $function = $reflection->getMethod($method);
+        if (!$function->isPublic() || !$function->isStatic()) {
+            $finish(['error' => 'names a method that is not public and static'], 2);
+        }
+        if ($function->getNumberOfRequiredParameters() > 0) {
+            $finish(['error' => 'names a method that takes a required argument'], 2);
+        }
+        $app = $function->invoke(null);
+        if (!$app instanceof Slim\App) {
+            $finish(['error' => 'returned ' . get_debug_type($app) . ', not a Slim\App'], 2);
+        }
+        $finish(['routes' => $routesOf($app)], 0);
+    } catch (Throwable $exception) {
+        $finish(['error' => 'threw ' . $exception::class . ' while booting: ' . $exception->getMessage() . ' in ' . $exception->getFile() . ':' . $exception->getLine()], 2);
+    }
+}
 
 $result = [];
 try {
@@ -83,23 +150,15 @@ try {
     }
 
     if ($withRoutes) {
-        $app = Kipchak\Core\Api::boot();
-        $result['routes'] = [];
-        foreach ($app->getRouteCollector()->getRoutes() as $route) {
-            $callable = $route->getCallable();
-            $handler = match (true) {
-                is_array($callable) && count($callable) === 2 => (is_object($callable[0]) ? $callable[0]::class : (string) $callable[0]) . '::' . $callable[1],
-                is_string($callable) => $callable,
-                $callable instanceof Closure => 'Closure',
-                is_object($callable) => $callable::class,
-                default => '',
-            };
-            $result['routes'][] = [
-                'methods' => array_values($route->getMethods()),
-                'pattern' => $route->getPattern(),
-                'handler' => $handler,
-                'name' => $route->getName(),
-            ];
+        $result['routes'] = $routesOf(Kipchak\Core\Api::boot());
+
+        // The project's other apps, declared in its own composer.json under extra.kipchak.apps, each as the
+        // Class::method that boots it. They are listed as written, and booted by kipchak/cli in processes of their
+        // own; the key is absent when the project declares none, so that a one-app project's output is unchanged.
+        $project = is_file('composer.json') ? json_decode((string) file_get_contents('composer.json'), true) : null;
+        $apps = is_array($project) ? ($project['extra']['kipchak']['apps'] ?? null) : null;
+        if ($apps !== null && $apps !== []) {
+            $result['apps'] = is_array($apps) ? array_values($apps) : [$apps];
         }
 
         // Protocol endpoints: route handlers that an installed Kipchak package declares, under

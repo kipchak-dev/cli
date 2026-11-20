@@ -299,6 +299,84 @@ final class OpenApiChecksTest extends TestCase
         self::assertContains('OAS-001 /', self::summary(self::check($inspection)));
     }
 
+    /**
+     * The starter's inspection, with its /status route moved to a second app, as the Inspector merges it.
+     *
+     * @param list<array{app: string, problem: string}> $problems
+     */
+    private static function twoApps(array $problems = [], bool $statusInBoth = false): Inspection
+    {
+        $starter = self::starter();
+        $status = array_values(array_filter($starter['routes'], static fn (array $r): bool => $r['pattern'] === '/status'));
+        if (!$statusInBoth) {
+            $starter['routes'] = array_values(array_filter($starter['routes'], static fn (array $r): bool => $r['pattern'] !== '/status'));
+        }
+        $starter['apps'] = ['Api\\Health::boot'];
+
+        return Inspection::fromJson((string) json_encode($starter, JSON_PRESERVE_ZERO_FRACTION))
+            ->withApps(['Api\\Health::boot' => $status], $problems);
+    }
+
+    /**
+     * @param list<string> $ignoredRoutes
+     * @return list<string>
+     */
+    private static function checkTwoApps(Inspection $inspection, array $ignoredRoutes = []): array
+    {
+        return self::summary(new OpenApiChecks()->check($inspection, $ignoredRoutes));
+    }
+
+    public function testAnOperationRoutedBySecondAppIsRouted(): void
+    {
+        // T5, the union: GET /status is routed by the second app only.
+        self::assertSame([], self::checkTwoApps(self::twoApps()));
+    }
+
+    public function testAnOperationRoutedByNoAppIsKip001(): void
+    {
+        $inspection = self::twoApps();
+        $inspection = new Inspection($inspection->document, routes: array_values(array_filter($inspection->routes ?? [], static fn (array $r): bool => $r['pattern'] !== '/status')),
+            apps: $inspection->apps);
+
+        self::assertSame(['KIP-001 GET /status'], self::checkTwoApps($inspection));
+    }
+
+    public function testARouteOfASecondAppWithNoOperationNamesTheApp(): void
+    {
+        $inspection = self::twoApps();
+        $routes = [...($inspection->routes ?? []), ['methods' => ['GET'], 'pattern' => '/health/unlisted', 'handler' => 'Closure', 'name' => null, 'app' => 'Api\\Health::boot']];
+        $findings = new OpenApiChecks()->check(new Inspection($inspection->document, routes: $routes, apps: $inspection->apps));
+
+        self::assertSame(['KIP-001 GET /health/unlisted'], self::summary($findings));
+        self::assertSame('The route (Closure) of the app Api\\Health::boot has no operation in the document.', $findings[0]->message);
+    }
+
+    public function testIgnoreRouteAppliesToEveryApp(): void
+    {
+        $inspection = self::twoApps();
+        $routes = [...($inspection->routes ?? []), ['methods' => ['GET'], 'pattern' => '/health/unlisted', 'handler' => 'Closure', 'name' => null, 'app' => 'Api\\Health::boot']];
+
+        self::assertSame([], self::checkTwoApps(new Inspection($inspection->document, routes: $routes, apps: $inspection->apps), ['GET /health/unlisted']));
+    }
+
+    public function testARouteServedByTwoAppsIsKip009(): void
+    {
+        $findings = new OpenApiChecks()->check(self::twoApps(statusInBoth: true));
+
+        self::assertSame(['KIP-009 GET /status'], self::summary($findings));
+        self::assertSame(Severity::Warning, $findings[0]->severity);
+        self::assertStringContainsString('(main, Api\\Health::boot)', $findings[0]->message);
+    }
+
+    public function testADeclaredAppThatCouldNotBeReadIsKip008(): void
+    {
+        $findings = new OpenApiChecks()->check(self::twoApps([['app' => 'Api\\Broken::boot', 'problem' => 'names a method that is not public and static']]));
+
+        self::assertSame(['KIP-008 Api\\Broken::boot'], self::summary($findings));
+        self::assertSame(Severity::Error, $findings[0]->severity);
+        self::assertSame('The app declared in extra.kipchak.apps names a method that is not public and static, so its routes were not read.', $findings[0]->message);
+    }
+
     public function testRoutePatternsBecomeDocumentPaths(): void
     {
         self::assertSame(['/v1/sultans/{id}'], OpenApiChecks::documentPaths('/v1/sultans/{id:[0-9]+}'));
