@@ -76,7 +76,11 @@ final class OpenApiValidateFixtureTest extends TestCase
         [$code, $result] = $this->validate(strict: true);
 
         self::assertSame(ExitCode::SUCCESS, $code, json_encode($result, JSON_PRETTY_PRINT) ?: '');
-        self::assertSame([], $result['findings']);
+        // Not even a warning. The starter's MCP endpoint (kipchak/driver-mcp, since starter 4.10) is listed as a
+        // notice per method, which is what the declaration is for, and nothing else is.
+        $others = array_filter($result['findings'], static fn (array $f): bool => $f['severity'] !== 'notice'
+            || !str_starts_with($f['message'], 'Not checked: a protocol endpoint of kipchak/driver-mcp'));
+        self::assertSame([], array_values($others));
     }
 
     /**
